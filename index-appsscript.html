@@ -3451,22 +3451,26 @@ function json(obj) {
     updateSave();
   }
 
-  // El "Estado final del equipo" solo se solicita cuando el Resultado es "Si";
-  // El Estado Final siempre se puede elegir (Operativo / No operativo / En servicio técnico).
+  // El "Estado final del equipo" es obligatorio solo cuando el Resultado es "Si"
+  // (mantención realizada); con cualquier otro resultado es opcional.
+  function mEfRequired() { return $('#mResultado').value === 'Si'; }
   function updateEstadoFinal() {
     $('#mEstadoFinal').disabled = false;
-    $('#mEstadoFinalLabel').innerHTML = 'Estado final del equipo <span class="req">*</span>';
+    $('#mEstadoFinalLabel').innerHTML = mEfRequired()
+      ? 'Estado final del equipo <span class="req">*</span>'
+      : 'Estado final del equipo <span class="muted">(opcional)</span>';
   }
 
   function updateSave() {
+    const efOk = !mEfRequired() || !!$('#mEstadoFinal').value;
     $('#mSave').disabled = !(state.selMonth !== null &&
-      $('#mResultado').value && $('#mEjecutor').value && $('#mEstadoFinal').value);
+      $('#mResultado').value && $('#mEjecutor').value && efOk);
   }
 
   function saveRegistro() {
     const eq = state.selEq, mi = state.selMonth;
     if (!eq || mi === null) return;
-    if (!$('#mResultado').value || !$('#mEjecutor').value || !$('#mEstadoFinal').value) {
+    if (!$('#mResultado').value || !$('#mEjecutor').value || (mEfRequired() && !$('#mEstadoFinal').value)) {
       showInline($('#modalMsg'), 'err', 'Complete los campos obligatorios (*).'); return;
     }
     const p = $('#mFecha').value.split('-');
