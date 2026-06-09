@@ -1805,8 +1805,8 @@ function json(obj) {
   // Campos solicitados por cada tipo de evento correctivo (en orden)
   const CORRECTIVO_CAMPOS = {
     'Solicitud de trabajo': ['fecha', 'folioSolicitud', 'ejecutor', 'descripcion', 'estadoFinal'],
-    'Envío a servicio técnico': ['fecha', 'folioSolicitud', 'nEnvio', 'ejecutor', 'empresa', 'estadoFinal'],
-    'Recepción': ['fecha', 'folioGuia', 'empresa', 'estadoFinal'],
+    'Envío a servicio técnico': ['fecha', 'folioSolicitud', 'nEnvio', 'ejecutor', 'empresa', 'descripcion', 'estadoFinal'],
+    'Recepción': ['fecha', 'folioGuia', 'empresa', 'descripcion', 'estadoFinal'],
     'Reporte de servicio': ['fecha', 'empresa', 'descripcion', 'estadoFinal'],
     'Otro': ['fecha', 'ejecutor', 'descripcion', 'estadoFinal']
   };
@@ -4474,7 +4474,7 @@ function json(obj) {
       if (k === 'ejecutor') return cField(k, label, cSelectHTML('cf_' + k, MP.EJECUTORES));
       if (k === 'estadoFinal') return cField(k, label, cSelectHTML('cf_' + k, MP.ESTADO_FINAL_OPCIONES));
       if (k === 'descripcion') return cField(k, label, '<textarea id="cf_' + k + '"></textarea>');
-      if (k === 'fecha') return cField(k, label, '<input id="cf_' + k + '" type="date" min="2026-01-01" max="2026-12-31">');
+      if (k === 'fecha') return cField(k, label, '<input id="cf_' + k + '" type="date" min="2020-01-01" max="2026-12-31">');
       return cField(k, label, '<input id="cf_' + k + '" type="text" autocomplete="off">');
     }).join('');
     cont.querySelectorAll('input,select,textarea').forEach(el => {
@@ -5185,11 +5185,17 @@ function json(obj) {
   $('#mRem7').addEventListener('click', () => { const t = new Date(); t.setDate(t.getDate() + 7); $('#mRecordatorio').value = isoDate(t); });
   $('#mRem30').addEventListener('click', () => { const t = new Date(); t.setDate(t.getDate() + 30); $('#mRecordatorio').value = isoDate(t); });
   $('#mRemClear').addEventListener('click', () => { $('#mRecordatorio').value = ''; });
-  $('#mCancel').addEventListener('click', closeModal);
-  $('#mClose').addEventListener('click', closeModal);
+  const mTryClose = () => { if (!mDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) closeModal(); };
+  $('#mCancel').addEventListener('click', mTryClose);
+  $('#mClose').addEventListener('click', mTryClose);
   $('#status').addEventListener('click', () => { $('#status').style.display = 'none'; });
-  $('#modal').addEventListener('click', e => { if (e.target === $('#modal')) closeModal(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#modal').classList.contains('show')) closeModal(); });
+  // Clic fuera NO cierra (evita perder lo escrito); Escape confirma si hay datos.
+  function mDirty() { return !!($('#mFecha').value || $('#mResultado').value || $('#mObs').value.trim() || $('#mEjecutor').value || $('#mEstadoFinal').value); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && $('#modal').classList.contains('show')) {
+      if (!mDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) closeModal();
+    }
+  });
 
   // Evento correctivo
   $('#cTipo').addEventListener('change', renderCFields);
@@ -5198,10 +5204,15 @@ function json(obj) {
   $('#cRem7').addEventListener('click', () => { const t = new Date(); t.setDate(t.getDate() + 7); $('#cRecordatorio').value = isoDate(t); });
   $('#cRem30').addEventListener('click', () => { const t = new Date(); t.setDate(t.getDate() + 30); $('#cRecordatorio').value = isoDate(t); });
   $('#cRemClear').addEventListener('click', () => { $('#cRecordatorio').value = ''; });
-  $('#cCancel').addEventListener('click', closeCModal);
-  $('#cClose').addEventListener('click', closeCModal);
-  $('#cmodal').addEventListener('click', e => { if (e.target === $('#cmodal')) closeCModal(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#cmodal').classList.contains('show')) closeCModal(); });
+  const cTryClose = () => { if (!cDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) closeCModal(); };
+  $('#cCancel').addEventListener('click', cTryClose);
+  $('#cClose').addEventListener('click', cTryClose);
+  function cDirty() { if ($('#cTipo').value) return true; let d = false; document.querySelectorAll('#cFields input, #cFields select, #cFields textarea').forEach(el => { if (String(el.value).trim()) d = true; }); return d; }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && $('#cmodal').classList.contains('show')) {
+      if (!cDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) closeCModal();
+    }
+  });
   $('#clearCorr').addEventListener('click', () => {
     if (!state.correctivos.length) return;
     if (!confirm('¿Eliminar los ' + state.correctivos.length + ' eventos correctivos registrados?')) return;
@@ -5216,10 +5227,15 @@ function json(obj) {
   $('#pQuick3').addEventListener('click', () => { const t = new Date(); t.setHours(0, 0, 0, 0); setPFecha(addBusinessDays(t, 3)); });
   $('#pQuick7').addEventListener('click', () => { const t = new Date(); t.setHours(0, 0, 0, 0); t.setDate(t.getDate() + 7); setPFecha(t); });
   $('#pSave').addEventListener('click', savePendiente);
-  $('#pCancel').addEventListener('click', closePModal);
-  $('#pClose').addEventListener('click', closePModal);
-  $('#pmodal').addEventListener('click', e => { if (e.target === $('#pmodal')) closePModal(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#pmodal').classList.contains('show')) closePModal(); });
+  const pTryClose = () => { if (!pDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) closePModal(); };
+  $('#pCancel').addEventListener('click', pTryClose);
+  $('#pClose').addEventListener('click', pTryClose);
+  function pDirty() { return !!($('#pTipo').value || $('#pFecha').value || $('#pRespAdmin').value || $('#pRespEjec').value || $('#pObs').value.trim()); }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && $('#pmodal').classList.contains('show')) {
+      if (!pDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) closePModal();
+    }
+  });
   $('#pendientesFilter').addEventListener('input', renderPendientes);
   // Gestión de pendientes
   $('#gEstado').addEventListener('change', () => { if (state.gPend) {
