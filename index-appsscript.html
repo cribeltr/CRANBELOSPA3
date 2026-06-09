@@ -566,7 +566,10 @@
     <div class="card" id="inventarioCard" style="display:none">
       <div class="actions" style="justify-content:space-between;align-items:center">
         <span class="section-title" id="inventarioTitle" style="font-size:15px">🩺 Equipo</span>
-        <span class="muted" style="font-size:12.5px">Mostrando <b id="inventarioCount">0</b> equipo(s) · clic en una fila para ver el detalle</span>
+        <span style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span class="muted" style="font-size:12.5px">Mostrando <b id="inventarioCount">0</b> equipo(s) · clic en una fila para ver el detalle</span>
+          <button id="inventarioExport" class="btn btn-accent btn-sm" type="button" style="margin-top:0">⬇️ Exportar a Excel</button>
+        </span>
       </div>
       <div class="estabs" id="estabs"></div>
       <div class="actions" style="margin-top:10px">
@@ -2886,6 +2889,65 @@ function json(obj) {
     await deliverXlsx(buildResumenWorkbook, 'Resumen_MP_2026_' + stamp() + '.xlsx', btn);
   }
 
+  // Excel del inventario COMPLETO de equipos (la pestaña 🩺 Equipo): una fila por
+  // equipo con sus datos, su estado actual calculado, pendientes y última actividad.
+  function buildInventarioWorkbook() {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Generador de Eventos MP'; wb.created = new Date();
+    const headFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF15616D' } };
+    const headFont = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11, name: 'Calibri' };
+    const styleHead = row => { row.height = 26; row.eachCell(c => { c.fill = headFill; c.font = headFont; c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }; }); };
+
+    const ctx = { cats: equipoCatMap() };
+    const sh = wb.addWorksheet('Inventario', { views: [{ state: 'frozen', ySplit: 1 }] });
+    sh.columns = [
+      { header: 'ID', key: 'id', width: 8 },
+      { header: 'N° Inventario', key: 'inv', width: 14 },
+      { header: 'N° Carpeta', key: 'carpeta', width: 12 },
+      { header: 'Equipo', key: 'equipo', width: 26 },
+      { header: 'N° Serie', key: 'serie', width: 18 },
+      { header: 'Marca', key: 'marca', width: 16 },
+      { header: 'Modelo', key: 'modelo', width: 18 },
+      { header: 'Servicio', key: 'servicio', width: 20 },
+      { header: 'Unidad', key: 'unidad', width: 18 },
+      { header: 'Ubicación', key: 'ubicacion', width: 16 },
+      { header: 'Procedencia', key: 'procedencia', width: 13 },
+      { header: 'Año Instalación', key: 'anio', width: 11 },
+      { header: 'Vida Útil Residual', key: 'vur', width: 11 },
+      { header: 'Clasificación', key: 'clasif', width: 14 },
+      { header: 'ENU / Baja', key: 'enubaja', width: 11 },
+      { header: 'Frecuencia MP', key: 'frecuencia', width: 13 },
+      { header: 'Estado del equipo', key: 'estado', width: 18 },
+      { header: 'Pendientes abiertos', key: 'pend', width: 12 },
+      { header: 'Última actualización', key: 'ultima', width: 16 },
+      { header: 'Observación', key: 'observacion', width: 40 }
+    ];
+    styleHead(sh.getRow(1));
+    const TEXT_COLS = [2, 3, 5];   // N° Inventario, N° Carpeta, N° Serie -> texto
+    const ULTIMA_COL = 19;
+    state.equipos.forEach(eq => {
+      const ua = ultimaActualizacion(eq.id);
+      const idN = MP.toNum(eq.id), anioN = MP.toNum(eq.anio), vurN = MP.toNum(eq.vur);
+      const row = sh.addRow({
+        id: idN != null ? idN : (eq.id || ''), inv: eq.inv, carpeta: eq.carpeta, equipo: eq.equipo, serie: eq.serie,
+        marca: eq.marca, modelo: eq.modelo, servicio: eq.servicio, unidad: eq.unidad, ubicacion: eq.ubicacion,
+        procedencia: eq.procedencia, anio: anioN != null ? anioN : '', vur: vurN != null ? vurN : '',
+        clasif: eq.clasif, enubaja: eq.enubaja, frecuencia: eq.frecuencia,
+        estado: ctx.cats[eq.id] || 'Sin estado', pend: pendAbiertosDe(eq.id),
+        ultima: (ua instanceof Date) ? ua : '', observacion: eq.observacion
+      });
+      TEXT_COLS.forEach(ci => { row.getCell(ci).numFmt = '@'; });
+      const fc = row.getCell(ULTIMA_COL); if (fc.value instanceof Date) fc.numFmt = 'dd-mm-yyyy';
+    });
+    sh.autoFilter = { from: 'A1', to: sh.getColumn(sh.columnCount).letter + '1' };
+    return wb;
+  }
+
+  async function exportInventario(btn) {
+    if (!state.equipos.length) { setStatus('Primero carga la programación (o trae de Google Sheets) para exportar el inventario.', 'warn'); return; }
+    await deliverXlsx(buildInventarioWorkbook, 'Inventario_MP_2026_' + stamp() + '.xlsx', btn);
+  }
+
   // ---- Búsqueda con sugerencias en vivo + historial ----------------------
   function resetSearch() {
     $('#searchInput').value = '';
@@ -4048,6 +4110,7 @@ function json(obj) {
   $('#download').addEventListener('click', () =>
     downloadWorkbook(consolidatedEvents(), 'Eventos_MP_2026_' + stamp() + '.xlsx', $('#download')));
   $('#resumenExport').addEventListener('click', () => exportResumen($('#resumenExport')));
+  $('#inventarioExport').addEventListener('click', () => exportInventario($('#inventarioExport')));
   $('#downloadReg').addEventListener('click', () => {
     if (!state.registros.length) return;
     downloadWorkbook(state.registros, 'Registro_Mantenciones_' + stamp() + '.xlsx', $('#downloadReg'));
