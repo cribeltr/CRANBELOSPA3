@@ -136,7 +136,14 @@
   .fi .v{font-weight:600;text-align:right;word-break:break-word}
   .fi-obs{margin:8px 0;font-size:13px;background:#f1f7f8;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
   .fi-obs .k{color:var(--muted);display:block;margin-bottom:2px}
-  .fi-obs .vv{font-weight:600}
+  .fi-obs .vv{font-weight:600;white-space:normal;word-break:break-word;overflow-wrap:anywhere}
+  /* Detalle expandible de un evento del historial: valores que envuelven (sin amontonarse) */
+  .detrow > td{white-space:normal !important}
+  .evdet{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:6px 18px;margin:4px 0 2px}
+  .evcell{display:flex;flex-direction:column;gap:1px;border-bottom:1px dotted #e3e9eb;padding:5px 0;min-width:0}
+  .evcell .evk{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+  .evcell .evv{font-weight:600;font-size:13px;word-break:break-word;overflow-wrap:anywhere}
+  .evrem{margin-top:8px}
   /* ===================== Mejoras UI/UX ===================== */
   :root{ --radius:16px; --radius-sm:10px; --shadow:0 1px 2px rgba(16,42,52,.04), 0 8px 24px rgba(16,42,52,.06); --shadow-lg:0 24px 60px rgba(8,28,36,.30); }
   html{scroll-behavior:smooth}
@@ -1102,6 +1109,15 @@ function json(obj) {
         <label for="mFile">📎 Adjuntar archivo (opcional) — se sube a Drive</label>
         <input id="mFile" type="file" />
         <input id="mFileDesc" type="text" autocomplete="off" placeholder="Breve descripción del archivo (se guarda como .txt junto al archivo)" style="margin-top:6px" />
+      </div>
+      <div class="field" id="mRecordatorioField">
+        <label for="mRecordatorio">📅 Recordatorio (opcional) — crea un evento en Google Calendar</label>
+        <input id="mRecordatorio" type="date" />
+        <div class="quickdates">
+          <button id="mRem7" class="btn btn-ghost btn-sm" type="button" style="margin-top:0">+1 semana</button>
+          <button id="mRem30" class="btn btn-ghost btn-sm" type="button" style="margin-top:0">+30 días</button>
+          <button id="mRemClear" class="btn btn-ghost btn-sm" type="button" style="margin-top:0">✕ Quitar</button>
+        </div>
       </div>
     </fieldset>
     <div id="modalMsg" class="inline-msg"></div>
@@ -3346,9 +3362,9 @@ function json(obj) {
     const items = [];
     consolidatedEvents().filter(e => e.id === eq.id).forEach(e => {
       const real = (e.fechaEjecucion instanceof Date) ? e.fechaEjecucion : null;
-      const sort = real ? real.getTime() : new Date(2026, (e.nMes || 1) - 1, 1).getTime();
+      const prog = new Date(2026, (e.nMes || 1) - 1, 1);
       items.push({
-        kind: 'prev', tipo: 'Preventivo', sort, fecha: real,
+        kind: 'prev', tipo: 'Preventivo', sort: (real || prog).getTime(), fecha: real, remDate: real || prog,
         evento: 'Mantención preventiva' + (e.mes ? ' — ' + e.mes : ''),
         resEstado: [e.resultado, e.estado].filter(Boolean).join(' · ') || (e.estado || '—'),
         quien: e.ejecutor || '—', estadoFinal: e.estadoFinal || '', raw: e
@@ -3357,7 +3373,7 @@ function json(obj) {
     state.correctivos.filter(c => c.id === eq.id).forEach(c => {
       const real = (c.fecha instanceof Date) ? c.fecha : null;
       items.push({
-        kind: 'corr', tipo: 'Correctivo', sort: real ? real.getTime() : 0, fecha: real,
+        kind: 'corr', tipo: 'Correctivo', sort: real ? real.getTime() : 0, fecha: real, remDate: real,
         evento: c.tipoEvento || 'Evento correctivo', resEstado: '—',
         quien: c.ejecutor || '—', estadoFinal: c.estadoFinal || '', raw: c
       });
@@ -3365,7 +3381,7 @@ function json(obj) {
     state.pendientes.filter(p => p.id === eq.id).forEach(p => {
       const real = (p.fechaCompromiso instanceof Date) ? p.fechaCompromiso : null;
       items.push({
-        kind: 'pend', tipo: 'Pendiente', sort: real ? real.getTime() : 0, fecha: real,
+        kind: 'pend', tipo: 'Pendiente', sort: real ? real.getTime() : 0, fecha: real, remDate: real,
         evento: 'Pendiente' + (p.tipo ? ': ' + p.tipo : ''), resEstado: p.estado || 'Abierto',
         quien: p.respEjecucion || '—', estadoFinal: '', raw: p
       });
@@ -3373,7 +3389,8 @@ function json(obj) {
     items.sort((a, b) => b.sort - a.sort);
     return items;
   }
-  // Panel de detalle (clave/valor) de un evento del historial
+  // Panel de detalle de un evento del historial (etiqueta arriba, valor abajo:
+  // los valores largos envuelven sin amontonarse).
   function eventoDetalleHTML(it) {
     const v = x => (x !== null && x !== undefined && String(x).trim() !== '') ? esc(x) : '—';
     const e = it.raw; let pairs;
@@ -3392,14 +3409,18 @@ function json(obj) {
         ['Resp. administrativo', e.respAdministrativo], ['Resp. ejecución', e.respEjecucion],
         ['Tareas', tareasResumen(e) || '—'], ['Última actualización', ultimaActTexto(e) || '—']];
     }
-    const grid = '<div class="ficha">' + pairs.map(p =>
-      '<div class="fi"><span class="k">' + esc(p[0]) + '</span><span class="v">' + v(p[1]) + '</span></div>').join('') + '</div>';
+    const grid = '<div class="evdet">' + pairs.map(p =>
+      '<div class="evcell"><span class="evk">' + esc(p[0]) + '</span><span class="evv">' + v(p[1]) + '</span></div>').join('') + '</div>';
     const longText = (it.kind === 'corr') ? e.descripcion : e.observacion;
     const obs = (longText && String(longText).trim())
       ? '<div class="fi-obs"><span class="k">' + (it.kind === 'corr' ? 'Descripción' : 'Observación') + '</span><span class="vv">' + esc(longText) + '</span></div>' : '';
     const adj = e.archivoUrl
       ? '<div style="margin-top:6px"><a href="' + esc(e.archivoUrl) + '" target="_blank" rel="noopener">📎 ' + esc(e.archivoNombre || 'Ver adjunto') + '</a></div>' : '';
-    return grid + obs + adj;
+    const rem = (it.remDate instanceof Date)
+      ? '<div class="evrem">' + recordatorioLink('MP 2026 · ' + (e.equipo || 'Equipo') + ' — ' + it.evento, it.remDate,
+          it.evento + ' · Equipo ' + (e.equipo || '') + ' (ID ' + (e.id || '') + ', Serie ' + (e.serie || '—') + ', Inv ' + (e.inv || '—') + ').', e.servicio || '') + '</div>'
+      : '';
+    return grid + obs + adj + rem;
   }
   // Excel con todos los eventos del equipo que se está viendo (cronológico)
   function buildEquipoWorkbook(eq) {
@@ -3544,6 +3565,7 @@ function json(obj) {
     $('#mObs').value = '';
     $('#mResultado').value = ''; $('#mEjecutor').value = ''; $('#mEstadoFinal').value = '';
     $('#mFile').value = ''; $('#mFileDesc').value = ''; $('#mAttachField').style.display = sheetsReady() ? 'block' : 'none';
+    $('#mRecordatorio').value = '';
     updateEstadoFinal();
     $('#mTipo').style.display = 'none';
     $('#mFields').disabled = true;
@@ -3613,6 +3635,7 @@ function json(obj) {
     });
     const attFile = $('#mFile') ? $('#mFile').files[0] : null;   // capturar antes de cerrar
     const attDesc = $('#mFileDesc') ? $('#mFileDesc').value.trim() : '';
+    const remVal = $('#mRecordatorio') ? $('#mRecordatorio').value : '';   // capturar antes de cerrar
     state.registros.push(reg);
     saveRegistros();   // persistir en el navegador
     closeModal();
@@ -3620,8 +3643,16 @@ function json(obj) {
     renderPreview();   // reflejar el registro en la vista previa y en el Excel masivo
     renderDiscrepancias();
     if (state.selDetalleEq) renderDetalle(state.selDetalleEq);   // refrescar historial visible
-    setStatus('✅ Mantención registrada: <b>' + esc(eq.equipo) + '</b> — ' + esc(reg.mes) +
-      ' (' + esc(fmtDate(fecha)) + '). Quedará incluida al descargar el Excel.', 'ok');
+    let rmsg = '✅ Mantención registrada: <b>' + esc(eq.equipo) + '</b> — ' + esc(reg.mes) +
+      ' (' + esc(fmtDate(fecha)) + '). Quedará incluida al descargar el Excel.';
+    let rkind = 'ok';
+    if (remVal) {
+      const rp = remVal.split('-'); const rd = new Date(+rp[0], +rp[1] - 1, +rp[2]);
+      rmsg += recordatorioLink('MP 2026 · ' + (eq.equipo || 'Equipo') + ' — Mantención ' + reg.mes, rd,
+        'Recordatorio de mantención preventiva (' + reg.mes + ') · Equipo ' + (eq.equipo || '') + ' (ID ' + eq.id + ', Serie ' + (eq.serie || '—') + ', Inv ' + (eq.inv || '—') + ').', eq.servicio || '');
+      rkind = 'info';
+    }
+    setStatus(rmsg, rkind);
     autoExportSheets();   // actualizar Google Sheets si está activado
     if (attFile) attachToEvent('reg', reg, attFile, 'Mantención preventiva', attDesc || (reg.mes + ' · ' + reg.resultado + ' · ' + fmtDate(fecha)));
   }
@@ -4359,6 +4390,9 @@ function json(obj) {
   $('#mResultado').addEventListener('change', () => { updateEstadoFinal(); updateSave(); });
   ['#mEjecutor', '#mEstadoFinal'].forEach(s => $(s).addEventListener('change', updateSave));
   $('#mSave').addEventListener('click', saveRegistro);
+  $('#mRem7').addEventListener('click', () => { const t = new Date(); t.setDate(t.getDate() + 7); $('#mRecordatorio').value = isoDate(t); });
+  $('#mRem30').addEventListener('click', () => { const t = new Date(); t.setDate(t.getDate() + 30); $('#mRecordatorio').value = isoDate(t); });
+  $('#mRemClear').addEventListener('click', () => { $('#mRecordatorio').value = ''; });
   $('#mCancel').addEventListener('click', closeModal);
   $('#mClose').addEventListener('click', closeModal);
   $('#status').addEventListener('click', () => { $('#status').style.display = 'none'; });
