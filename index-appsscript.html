@@ -2826,46 +2826,57 @@ function json(obj) {
     const sh = wb.addWorksheet('Resumen mensual', { views: [{ state: 'frozen', ySplit: 1 }] });
     sh.columns = [
       { header: 'Mes', key: 'mes', width: 16 },
-      { header: 'Programadas', key: 'prog', width: 14 },
-      { header: 'Realizadas', key: 'real', width: 14 },
-      { header: 'Pendientes', key: 'pend', width: 14 }
+      { header: 'Programadas', key: 'prog', width: 13 },
+      { header: 'Realizadas', key: 'real', width: 13 },
+      { header: 'Reprogramadas', key: 'reprog', width: 15 },
+      { header: 'Pendientes', key: 'pend', width: 13 },
+      { header: 'Otras', key: 'otras', width: 10 }
     ];
     styleHead(sh.getRow(1));
-    const tot = { prog: 0, real: 0, pend: 0 };
+    const tot = { prog: 0, real: 0, reprog: 0, pend: 0, otras: 0 };
     m.forEach((x, i) => {
-      sh.addRow({ mes: MP.MONTHS_FULL[i], prog: x.prog.length, real: x.real.length, pend: x.pend.length });
-      tot.prog += x.prog.length; tot.real += x.real.length; tot.pend += x.pend.length;
+      sh.addRow({ mes: MP.MONTHS_FULL[i], prog: x.prog.length, real: x.real.length, reprog: x.reprog.length, pend: x.pend.length, otras: x.otras.length });
+      tot.prog += x.prog.length; tot.real += x.real.length; tot.reprog += x.reprog.length; tot.pend += x.pend.length; tot.otras += x.otras.length;
     });
-    const tr = sh.addRow({ mes: 'Total', prog: tot.prog, real: tot.real, pend: tot.pend });
+    const tr = sh.addRow({ mes: 'Total', prog: tot.prog, real: tot.real, reprog: tot.reprog, pend: tot.pend, otras: tot.otras });
     tr.eachCell(c => { c.font = { bold: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF3F5' } }; });
-    sh.autoFilter = { from: 'A1', to: 'D1' };
+    sh.autoFilter = { from: 'A1', to: 'F1' };
 
     const sel = state.resSel;
     if (sel) {
       const arr = ((monthlyAgg()[sel.mi] || {})[sel.metric]) || [];
-      const label = sel.metric === 'prog' ? 'Programadas' : sel.metric === 'real' ? 'Realizadas' : 'Pendientes';
+      const labels = { prog: 'Programadas', real: 'Realizadas', reprog: 'Reprogramadas', pend: 'Pendientes', otras: 'Otras' };
+      const label = labels[sel.metric] || sel.metric;
       const name = ('Detalle ' + MP.MONTHS_FULL[sel.mi] + ' ' + label).replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31);
       const ds = wb.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 1 }] });
       ds.columns = [
         { header: 'ID', key: 'id', width: 8 },
-        { header: 'Equipo', key: 'equipo', width: 28 },
-        { header: 'Servicio', key: 'servicio', width: 22 },
-        { header: 'Programa', key: 'programa', width: 12 },
-        { header: 'Resultado', key: 'resultado', width: 12 },
-        { header: 'Fecha', key: 'fecha', width: 14 },
+        { header: 'Equipo', key: 'equipo', width: 26 },
+        { header: 'N° Serie', key: 'serie', width: 18 },
+        { header: 'Marca', key: 'marca', width: 16 },
+        { header: 'Modelo', key: 'modelo', width: 18 },
+        { header: 'Servicio', key: 'servicio', width: 20 },
+        { header: 'Ubicación', key: 'ubicacion', width: 16 },
+        { header: 'Procedencia', key: 'procedencia', width: 14 },
+        { header: 'Programa', key: 'programa', width: 11 },
+        { header: 'Resultado', key: 'resultado', width: 11 },
+        { header: 'Fecha', key: 'fecha', width: 13 },
         { header: 'Estado', key: 'estado', width: 22 }
       ];
       styleHead(ds.getRow(1));
+      const serieCol = 3, fechaCol = 11;
       arr.forEach(e => {
         const idNum = MP.toNum(e.id);
         const row = ds.addRow({
-          id: idNum != null ? idNum : (e.id || ''), equipo: e.equipo, servicio: e.servicio,
+          id: idNum != null ? idNum : (e.id || ''), equipo: e.equipo, serie: e.serie, marca: e.marca, modelo: e.modelo,
+          servicio: e.servicio, ubicacion: e.ubicacion, procedencia: e.procedencia,
           programa: e.programa, resultado: e.resultado,
           fecha: (e.fechaEjecucion instanceof Date) ? e.fechaEjecucion : '', estado: e.estado
         });
-        const fc = row.getCell(6); if (fc.value instanceof Date) fc.numFmt = 'dd-mm-yyyy';
+        row.getCell(serieCol).numFmt = '@';   // N° Serie como texto (conserva ceros a la izquierda)
+        const fc = row.getCell(fechaCol); if (fc.value instanceof Date) fc.numFmt = 'dd-mm-yyyy';
       });
-      ds.autoFilter = { from: 'A1', to: 'G1' };
+      ds.autoFilter = { from: 'A1', to: 'L1' };
     }
     return wb;
   }
@@ -3150,12 +3161,17 @@ function json(obj) {
   // ---- Vista Resumen mensual (con desglose clicable) ---------------------
   function monthlyAgg() {
     const ev = consolidatedEvents();
-    const m = MP.MONTHS_FULL.map(() => ({ prog: [], real: [], pend: [] }));
+    // prog/real/pend conservan su semántica (la vista en pantalla solo usa esas);
+    // reprog/otras se agregan para el Excel exportado.
+    const m = MP.MONTHS_FULL.map(() => ({ prog: [], real: [], reprog: [], pend: [], otras: [] }));
     ev.forEach(e => {
       const b = m[e.nMes - 1]; if (!b) return;
       if (e.programa) b.prog.push(e);
-      if (e.estado && e.estado.indexOf('Realizada') === 0) b.real.push(e);
-      else if (e.estado && e.estado.indexOf('Pendiente') === 0) b.pend.push(e);
+      const st = e.estado || '';
+      if (st.indexOf('Realizada') === 0) b.real.push(e);
+      else if (st === 'Reprogramada') b.reprog.push(e);
+      else if (st.indexOf('Pendiente') === 0) b.pend.push(e);
+      else b.otras.push(e);
     });
     return m;
   }
