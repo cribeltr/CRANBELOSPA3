@@ -551,8 +551,11 @@
   <section class="tabpanel" id="tab-resumen">
     <div class="card" id="resumenHint" style="display:none">📂 Primero cargue el archivo en <b>Cargar y generar</b> para ver el resumen mensual.</div>
     <div class="card" id="resumenCard" style="display:none">
-      <p class="section-title">📊 Resumen mensual de mantenciones</p>
-      <p class="muted" style="margin:0 0 12px">Programadas, realizadas y pendientes por mes. <b>Haz clic en cualquier número</b> para ver la lista de equipos de ese grupo; luego clic en un equipo para ver su detalle.</p>
+      <div class="actions" style="justify-content:space-between;align-items:center">
+        <p class="section-title" style="margin:0">📊 Resumen mensual de mantenciones</p>
+        <button id="resumenExport" class="btn btn-accent btn-sm" type="button" style="margin-top:0">⬇️ Exportar a Excel</button>
+      </div>
+      <p class="muted" style="margin:8px 0 12px">Programadas, realizadas y pendientes por mes. <b>Haz clic en cualquier número</b> para ver la lista de equipos de ese grupo; luego clic en un equipo para ver su detalle. El botón exporta esta tabla (y el desglose abierto, si lo hay) a Excel.</p>
       <div class="tablewrap"><table class="prev" id="resumenTable"></table></div>
       <div id="resumenDrill" style="margin-top:14px"></div>
     </div>
@@ -2773,16 +2776,16 @@ function json(obj) {
     touch();
   }
 
-  async function downloadWorkbook(events, fname, btn) {
+  // Entrega un libro ExcelJS (lo construye buildFn): en Apps Script lo guarda en
+  // Drive y entrega un enlace (el iframe bloquea el Blob); si no, descarga directa.
+  async function deliverXlsx(buildFn, fname, btn) {
     const original = btn.textContent;
     btn.disabled = true; btn.textContent = 'Generando Excel…';
     try {
-      const wb = MPOUT.buildOutputWorkbook(ExcelJS, MP, events, { equipos: state.equipos.length, correctivos: state.correctivos, pendientes: decoratedPendientes(), archivos: state.archivos });
+      const wb = buildFn();
       const buf = await wb.xlsx.writeBuffer();
       const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       if (GAS) {
-        // Dentro de Apps Script el iframe bloquea la descarga directa de un Blob:
-        // guardamos el Excel en Drive y entregamos un enlace de descarga.
         btn.textContent = 'Guardando en Drive…';
         const dataBase64 = await readFileB64(blob);
         const j = await gasCall('appSaveXlsx', { dataBase64, nombre: fname });
@@ -2802,6 +2805,74 @@ function json(obj) {
     } finally {
       btn.textContent = original; btn.disabled = false;
     }
+  }
+
+  async function downloadWorkbook(events, fname, btn) {
+    await deliverXlsx(
+      () => MPOUT.buildOutputWorkbook(ExcelJS, MP, events, { equipos: state.equipos.length, correctivos: state.correctivos, pendientes: decoratedPendientes(), archivos: state.archivos }),
+      fname, btn);
+  }
+
+  // Excel de "lo que se ve" en Resumen mensual: la tabla mensual y, si hay un
+  // desglose abierto (clic en un número), ese detalle como segunda hoja.
+  function buildResumenWorkbook() {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Generador de Eventos MP'; wb.created = new Date();
+    const headFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF15616D' } };
+    const headFont = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11, name: 'Calibri' };
+    const styleHead = row => { row.height = 22; row.eachCell(c => { c.fill = headFill; c.font = headFont; c.alignment = { vertical: 'middle', horizontal: 'center' }; }); };
+
+    const m = monthlyAgg();
+    const sh = wb.addWorksheet('Resumen mensual', { views: [{ state: 'frozen', ySplit: 1 }] });
+    sh.columns = [
+      { header: 'Mes', key: 'mes', width: 16 },
+      { header: 'Programadas', key: 'prog', width: 14 },
+      { header: 'Realizadas', key: 'real', width: 14 },
+      { header: 'Pendientes', key: 'pend', width: 14 }
+    ];
+    styleHead(sh.getRow(1));
+    const tot = { prog: 0, real: 0, pend: 0 };
+    m.forEach((x, i) => {
+      sh.addRow({ mes: MP.MONTHS_FULL[i], prog: x.prog.length, real: x.real.length, pend: x.pend.length });
+      tot.prog += x.prog.length; tot.real += x.real.length; tot.pend += x.pend.length;
+    });
+    const tr = sh.addRow({ mes: 'Total', prog: tot.prog, real: tot.real, pend: tot.pend });
+    tr.eachCell(c => { c.font = { bold: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF3F5' } }; });
+    sh.autoFilter = { from: 'A1', to: 'D1' };
+
+    const sel = state.resSel;
+    if (sel) {
+      const arr = ((monthlyAgg()[sel.mi] || {})[sel.metric]) || [];
+      const label = sel.metric === 'prog' ? 'Programadas' : sel.metric === 'real' ? 'Realizadas' : 'Pendientes';
+      const name = ('Detalle ' + MP.MONTHS_FULL[sel.mi] + ' ' + label).replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31);
+      const ds = wb.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 1 }] });
+      ds.columns = [
+        { header: 'ID', key: 'id', width: 8 },
+        { header: 'Equipo', key: 'equipo', width: 28 },
+        { header: 'Servicio', key: 'servicio', width: 22 },
+        { header: 'Programa', key: 'programa', width: 12 },
+        { header: 'Resultado', key: 'resultado', width: 12 },
+        { header: 'Fecha', key: 'fecha', width: 14 },
+        { header: 'Estado', key: 'estado', width: 22 }
+      ];
+      styleHead(ds.getRow(1));
+      arr.forEach(e => {
+        const idNum = MP.toNum(e.id);
+        const row = ds.addRow({
+          id: idNum != null ? idNum : (e.id || ''), equipo: e.equipo, servicio: e.servicio,
+          programa: e.programa, resultado: e.resultado,
+          fecha: (e.fechaEjecucion instanceof Date) ? e.fechaEjecucion : '', estado: e.estado
+        });
+        const fc = row.getCell(6); if (fc.value instanceof Date) fc.numFmt = 'dd-mm-yyyy';
+      });
+      ds.autoFilter = { from: 'A1', to: 'G1' };
+    }
+    return wb;
+  }
+
+  async function exportResumen(btn) {
+    if (!state.events.length) { setStatus('Primero carga la programación para exportar el resumen.', 'warn'); return; }
+    await deliverXlsx(buildResumenWorkbook, 'Resumen_MP_2026_' + stamp() + '.xlsx', btn);
   }
 
   // ---- Búsqueda con sugerencias en vivo + historial ----------------------
@@ -3960,6 +4031,7 @@ function json(obj) {
   });
   $('#download').addEventListener('click', () =>
     downloadWorkbook(consolidatedEvents(), 'Eventos_MP_2026_' + stamp() + '.xlsx', $('#download')));
+  $('#resumenExport').addEventListener('click', () => exportResumen($('#resumenExport')));
   $('#downloadReg').addEventListener('click', () => {
     if (!state.registros.length) return;
     downloadWorkbook(state.registros, 'Registro_Mantenciones_' + stamp() + '.xlsx', $('#downloadReg'));
