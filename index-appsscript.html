@@ -474,6 +474,7 @@
       <button class="tab" type="button" data-tab="pendientes"><span class="ico">📌</span><span class="lbl">Pendientes</span><em class="navcount" id="navPendCount"></em></button>
       <div class="navgrp">Gestión</div>
       <button class="tab" type="button" data-tab="resumen"><span class="ico">📊</span><span class="lbl">Resumen mensual</span></button>
+      <button class="tab" type="button" data-tab="empresas"><span class="ico">🏢</span><span class="lbl">Empresas</span><em class="navcount" id="navEmpCount"></em></button>
       <div class="navgrp">Herramientas</div>
       <button class="tab" type="button" data-tab="cargar"><span class="ico">📂</span><span class="lbl">Importar programación</span></button>
       <button class="tab" type="button" data-tab="utilidades"><span class="ico">🧰</span><span class="lbl">Utilidades PDF</span></button>
@@ -554,18 +555,6 @@
       </div>
     </div>
 
-    <div id="correctivosWrap" style="display:none;margin-top:18px">
-      <div class="actions" style="justify-content:space-between">
-        <span class="section-title" style="font-size:14px">Eventos correctivos: <span class="badge" id="correctivosCount">0</span></span>
-        <button id="clearCorr" class="btn btn-ghost btn-sm" type="button">🗑️ Limpiar</button>
-      </div>
-      <p class="muted" style="margin:8px 0 0">Se guardan en este navegador y se incluyen en la hoja <b>Correctivos</b> al descargar / enviar a Google Sheets.</p>
-      <input id="correctivosFilter" type="text" class="filter" autocomplete="off" placeholder="🔎 Filtrar por equipo, tipo de evento, empresa, ejecutor, estado…" />
-      <div id="correctivosScope" class="scope-note"></div>
-      <div class="tablewrap" style="margin-top:8px">
-        <table class="prev" id="correctivosTable"></table>
-      </div>
-    </div>
   </div>
 
   </section>
@@ -615,6 +604,30 @@
       <p class="muted" style="margin:8px 0 12px">Programadas, realizadas y pendientes por mes. <b>Haz clic en cualquier número</b> para ver la lista de equipos de ese grupo; luego clic en un equipo para ver su detalle. El botón exporta esta tabla (y el desglose abierto, si lo hay) a Excel.</p>
       <div class="tablewrap"><table class="prev" id="resumenTable"></table></div>
       <div id="resumenDrill" style="margin-top:14px"></div>
+    </div>
+  </section>
+
+  <section class="tabpanel" id="tab-empresas">
+    <div class="card">
+      <p class="section-title">🏢 Empresas / servicios técnicos</p>
+      <p class="muted" style="margin:0 0 12px">Catálogo de empresas para los eventos correctivos: al registrar un envío, recepción o reporte eliges la empresa de esta lista (se acabaron los "MEDTRONIC" y "medtronic" duplicados). Solo el <b>nombre</b> es obligatorio.</p>
+      <div class="ficha" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 14px">
+        <div class="field" style="margin:0"><label for="empNombre">Nombre <span class="req">*</span></label><input id="empNombre" type="text" autocomplete="off" placeholder="MEDTRONIC CHILE" /></div>
+        <div class="field" style="margin:0"><label for="empRut">RUT</label><input id="empRut" type="text" autocomplete="off" placeholder="76.123.456-7" /></div>
+        <div class="field" style="margin:0"><label for="empDireccion">Dirección</label><input id="empDireccion" type="text" autocomplete="off" /></div>
+        <div class="field" style="margin:0"><label for="empContacto">Contacto</label><input id="empContacto" type="text" autocomplete="off" placeholder="Nombre del contacto" /></div>
+        <div class="field" style="margin:0"><label for="empTelefono">Teléfono</label><input id="empTelefono" type="text" autocomplete="off" placeholder="+56 9 …" /></div>
+        <div class="field" style="margin:0"><label for="empCorreo">Correo</label><input id="empCorreo" type="text" autocomplete="off" placeholder="contacto@empresa.cl" /></div>
+        <div class="field" style="margin:0"><label for="empNotas">Notas</label><input id="empNotas" type="text" autocomplete="off" placeholder="Convenio, garantías, horarios…" /></div>
+      </div>
+      <div class="actions" style="margin-top:8px">
+        <button id="empGuardar" class="btn btn-accent btn-sm" type="button">➕ Agregar empresa</button>
+        <button id="empCancelar" class="btn btn-ghost btn-sm" type="button" style="display:none">✕ Cancelar edición</button>
+        <span id="empMsg" class="inline-msg" style="margin:0"></span>
+      </div>
+      <div class="tablewrap" style="margin-top:12px">
+        <table class="prev" id="empresasTable"></table>
+      </div>
     </div>
   </section>
 
@@ -700,7 +713,7 @@
       <div class="actions" style="margin-top:0"><button id="copyScript" class="btn btn-ghost btn-sm" type="button">📋 Copiar script</button></div>
       <p class="muted" style="margin:8px 0 0">⚠️ Si <b>Probar conexión</b> dice que el script está desactualizado, <b>no copies de aquí</b> (esta copia se sirve desde la misma versión publicada, así que también sería vieja): usa el archivo <code>Code.gs</code> que te entregaron y publica <b>Versión nueva</b>.</p>
       <pre id="gsScript" class="code">/****************************************************************************
- *  ===&gt;  VERSIÓN: v12-maestro-detalle  &lt;===  (debe coincidir con "Probar conexión")
+ *  ===&gt;  VERSIÓN: v13-empresas-casos  &lt;===  (debe coincidir con "Probar conexión")
  *  Puente Google Sheets — Programación MP 2026
  *  --------------------------------------------------------------------------
  *  ESTRUCTURA DE LA PLANILLA (v12, modelo maestro-detalle):
@@ -710,7 +723,7 @@
  *     equipo (inventario/nombre/familia/servicio) son FÓRMULAS que miran el
  *     maestro: una sola fuente de verdad.
  *   · CAPA DE DATOS (se actualiza EN CADA guardado, hojas pequeñas):
- *       RegistrosMP · Correctivos · Pendientes · Tareas · Bitacora · Archivos
+ *       RegistrosMP · Correctivos · Pendientes · Tareas · Bitacora · Archivos · Empresas
  *       (ID estable RegID/CorrID/PendID + 'ID Equipo' + fecha de registro;
  *       descriptores por fórmula desde el maestro).
  *   · "Resumen": indicadores con FÓRMULAS VIVAS (se recalculan solos).
@@ -761,7 +774,7 @@ function appPush(body) {
   try { return writeAll(typeof body === 'string' ? JSON.parse(body) : body); }
   finally { lock.releaseLock(); }
 }
-var APP_VERSION = 'v12-maestro-detalle';   // para confirmar qué versión está publicada (Probar conexión)
+var APP_VERSION = 'v13-empresas-casos';   // para confirmar qué versión está publicada (Probar conexión)
 function appPull() { return readAll(false); }   // sin equipos (evita el límite de tamaño de google.script.run)
 // Inventario completo: hoja "Equipos" (v11) o "_equipos" (heredada) o reconstruido desde Eventos.
 function allEquipos(ss) {
@@ -1215,6 +1228,7 @@ function readAll(includeEquipos) {
     ok: true, ver: APP_VERSION, count: n, data: data,
     tablas: {
       RegistrosMP: sheetVals(ss, 'RegistrosMP'),
+      Empresas: sheetVals(ss, 'Empresas'),
       Pendientes: sheetVals(ss, 'Pendientes'),
       Correctivos: sheetVals(ss, 'Correctivos'),
       Tareas: sheetVals(ss, 'Tareas'),
@@ -2375,7 +2389,7 @@ function json(obj) {
   'use strict';
 
   const $ = sel => document.querySelector(sel);
-  const state = { equipos: [], events: [], registros: [], correctivos: [], pendientes: [], archivos: [], searchResults: [], selEq: null, selMonth: null, selDetalleEq: null, sgActive: -1, cEq: null, pEq: null, gPend: null, invFilter: 'todos', resSel: null, invColFilters: {}, cfCol: null, tablasTodos: false };
+  const state = { equipos: [], events: [], registros: [], correctivos: [], pendientes: [], archivos: [], searchResults: [], selEq: null, selMonth: null, selDetalleEq: null, sgActive: -1, cEq: null, pEq: null, gPend: null, invFilter: 'todos', resSel: null, invColFilters: {}, cfCol: null, tablasTodos: false, empresas: [], empEditIdx: null, histFilter: 'todos' };
 
   // ---- Utilidades ---------------------------------------------------------
   function esc(s) {
@@ -2489,6 +2503,15 @@ function json(obj) {
   }
 
   // ---- Persistencia de archivos (enlaces a Drive) ------------------------
+  // ---- Persistencia de empresas (catálogo de servicios técnicos) ---------
+  const LS_EMP = 'mp_empresas_2026';
+  function saveEmpresas() { try { localStorage.setItem(LS_EMP, JSON.stringify(state.empresas)); } catch (e) { } }
+  function loadEmpresas() { try { const r = localStorage.getItem(LS_EMP); return r ? JSON.parse(r) : []; } catch (e) { return []; } }
+  function empresaPorNombre(nombre) {
+    const q = String(nombre || '').trim().toLowerCase();
+    return state.empresas.find(e => String(e.nombre || '').trim().toLowerCase() === q) || null;
+  }
+
   const LS_ARCH = 'mp_archivos_2026';
   function saveArchivos() { try { localStorage.setItem(LS_ARCH, JSON.stringify(state.archivos)); } catch (e) { } }
   function loadArchivos() { try { const r = localStorage.getItem(LS_ARCH); return r ? JSON.parse(r) : []; } catch (e) { return []; } }
@@ -2609,6 +2632,7 @@ function json(obj) {
     state.registros.forEach(r => { if (!r.regId) r.regId = uid('R'); });
     state.correctivos.forEach(c => { if (!c.corrId) c.corrId = uid('C'); });
     state.pendientes.forEach(p => { if (!p.pendId) p.pendId = uid('P'); });
+    state.empresas.forEach(e => { if (!e.empId) e.empId = uid('E'); });
   }
 
   // ---- Hojas de DATOS normalizadas (esquema v12: maestro Equipos + detalle) ---
@@ -2627,8 +2651,8 @@ function json(obj) {
     return rows;
   }
   function correctivosToRows() {
-    const rows = [['CorrID', 'ID Equipo', 'N° Inventario', 'N° Serie', 'Equipo', 'Servicio', 'Unidad', 'Tipo de Evento', 'Fecha', 'Folio Solicitud', 'N° Envío', 'Folio Guía Despacho', 'Empresa', 'Ejecutor', 'Descripción', 'Estado Final del Equipo', 'Adjunto', 'Nombre Adjunto', 'Registrado El']];
-    state.correctivos.forEach(c => rows.push([c.corrId || '', c.id || '', c.inv || '', c.serie || '', c.equipo || '', c.servicio || '', c.unidad || '', c.tipoEvento || '', sd(c.fecha), c.folioSolicitud || '', c.nEnvio || '', c.folioGuia || '', c.empresa || '', c.ejecutor || '', c.descripcion || '', c.estadoFinal || '', c.archivoUrl || '', c.archivoNombre || '', c.registradoEl || '']));
+    const rows = [['CorrID', 'CasoID', 'ID Equipo', 'N° Inventario', 'N° Serie', 'Equipo', 'Servicio', 'Unidad', 'Tipo de Evento', 'Fecha', 'Folio Solicitud', 'N° Envío', 'Folio Guía Despacho', 'Empresa', 'Ejecutor', 'Descripción', 'Estado Final del Equipo', 'Adjunto', 'Nombre Adjunto', 'Registrado El']];
+    state.correctivos.forEach(c => rows.push([c.corrId || '', c.casoId || '', c.id || '', c.inv || '', c.serie || '', c.equipo || '', c.servicio || '', c.unidad || '', c.tipoEvento || '', sd(c.fecha), c.folioSolicitud || '', c.nEnvio || '', c.folioGuia || '', c.empresa || '', c.ejecutor || '', c.descripcion || '', c.estadoFinal || '', c.archivoUrl || '', c.archivoNombre || '', c.registradoEl || '']));
     return rows;
   }
   function pendientesToRows() {
@@ -2639,6 +2663,11 @@ function json(obj) {
   function tareasToRows() {
     const rows = [['PendID', 'ID Equipo', 'Equipo', 'Tarea', 'Hecha', 'Estado del Pendiente', 'Fecha de Compromiso']];
     state.pendientes.forEach(p => (p.tareas || []).forEach(t => rows.push([p.pendId || '', p.id || '', p.equipo || '', t.texto || '', t.hecha ? 'Sí' : 'No', p.estado || 'Abierto', sd(p.fechaCompromiso)])));
+    return rows;
+  }
+  function empresasToRows() {
+    const rows = [['EmpID', 'Nombre', 'RUT', 'Dirección', 'Contacto', 'Teléfono', 'Correo', 'Notas', 'Registrado El']];
+    state.empresas.forEach(e => rows.push([e.empId || '', e.nombre || '', e.rut || '', e.direccion || '', e.contacto || '', e.telefono || '', e.correo || '', e.notas || '', e.registradoEl || '']));
     return rows;
   }
   function bitacoraToRows() {
@@ -2663,10 +2692,11 @@ function json(obj) {
           { value: 'Operativo', color: '#C6EFCE' }, { value: 'No operativo', color: '#FFC7CE' }, { value: 'En servicio técnico', color: '#FFE0B2' }
         ] }]
       },
-      Correctivos: { rows: correctivosToRows(), formulaCols: Object.assign({}, descB, { 'Servicio': fEq('B', 'F'), 'Unidad': fEq('B', 'G') }), validations: correctivosExtras().validations, colors: correctivosExtras().colors },
+      Correctivos: { rows: correctivosToRows(), formulaCols: { 'N° Inventario': fEq('C', 'C'), 'N° Serie': fEq('C', 'L'), 'Equipo': fEq('C', 'D'), 'Servicio': fEq('C', 'F'), 'Unidad': fEq('C', 'G') }, validations: correctivosExtras().validations, colors: correctivosExtras().colors },
       Pendientes: { rows: pendientesToRows(), formulaCols: Object.assign({}, descB, { 'Servicio': fEq('B', 'F'), 'Unidad': fEq('B', 'G') }), validations: pendientesExtras().validations, colors: pendientesExtras().colors },
       Tareas: { rows: tareasToRows(), formulaCols: { 'Equipo': fEq('B', 'D') } },
-      Bitacora: { rows: bitacoraToRows(), formulaCols: { 'Equipo': fEq('B', 'D') } }
+      Bitacora: { rows: bitacoraToRows(), formulaCols: { 'Equipo': fEq('B', 'D') } },
+      Empresas: { rows: empresasToRows() }
     };
   }
 
@@ -2781,7 +2811,8 @@ function json(obj) {
         fechaCompromiso: sd(p.fechaCompromiso),
         actualizaciones: (p.actualizaciones || []).map(a => ({ fecha: sd(a.fecha), texto: a.texto || '' })),
         tareas: (p.tareas || []).map(t => ({ texto: t.texto || '', hecha: !!t.hecha }))
-      }))
+      })),
+      empresas: state.empresas
     };
   }
   // Revive un snapshot y reemplaza el estado local
@@ -2802,6 +2833,7 @@ function json(obj) {
         tareas: (o.tareas || []).map(t => ({ texto: t.texto || '', hecha: !!t.hecha }))
       })); any = true;
     }
+    if (Array.isArray(obj.empresas)) { state.empresas = obj.empresas; any = true; }
     return any;
   }
 
@@ -3028,6 +3060,7 @@ function json(obj) {
   function correctivosFromTablaV2(grid) {
     return rowsToObjs(grid).map(o => ({
       corrId: sid(o['CorrID']) || uid('C'),
+      casoId: sid(o['CasoID']),
       id: idEquipoDe(o), inv: sid(o['N° Inventario']), serie: sid(o['N° Serie']), equipo: o['Equipo'] || '',
       servicio: o['Servicio'] || '', unidad: o['Unidad'] || '', tipoEvento: o['Tipo de Evento'] || '', fecha: asDate(o['Fecha']),
       folioSolicitud: sid(o['Folio Solicitud']), nEnvio: sid(o['N° Envío']), folioGuia: sid(o['Folio Guía Despacho']),
@@ -3054,11 +3087,19 @@ function json(obj) {
     pend.forEach(p => { p.tareas = tByPend[p.pendId] || []; p.actualizaciones = bByPend[p.pendId] || []; });
     return pend;
   }
+  function empresasFromTabla(grid) {
+    return rowsToObjs(grid || []).map(o => ({
+      empId: sid(o['EmpID']) || uid('E'), nombre: o['Nombre'] || '', rut: sid(o['RUT']), direccion: o['Dirección'] || '',
+      contacto: o['Contacto'] || '', telefono: sid(o['Teléfono']), correo: o['Correo'] || '', notas: o['Notas'] || '',
+      registradoEl: o['Registrado El'] ? String(o['Registrado El']) : ''
+    })).filter(e => e.nombre);
+  }
   function restoreFromDatos(tablas) {
     try {
       state.registros = registrosFromTabla(tablas.RegistrosMP);
       state.correctivos = correctivosFromTablaV2(tablas.Correctivos || []);
       state.pendientes = pendientesFromTablaV2(tablas);
+      if (Array.isArray(tablas.Empresas) && tablas.Empresas.length > 1) { state.empresas = empresasFromTabla(tablas.Empresas); saveEmpresas(); }
       return true;
     } catch (e) { return false; }
   }
@@ -3512,6 +3553,7 @@ function json(obj) {
   function selectEquipo(eq) {
     if (!eq) return;
     state.selDetalleEq = eq;
+    state.histFilter = 'todos';   // historial sin filtro al cambiar de equipo
     state.tablasTodos = false;   // al elegir un equipo, las tablas se acotan a ese equipo
     $('#searchInput').value = (eq.serie && String(eq.serie).trim()) ? eq.serie : eq.inv;
     hideSuggest();
@@ -3591,6 +3633,7 @@ function json(obj) {
     document.querySelectorAll('#bottomBar button').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
     setActivePanel('tab-' + id);
     if (id === 'inicio') renderInicio();
+    if (id === 'empresas') renderEmpresas();
     if (id === 'resumen') renderResumen();
     if (id === 'inventario') renderInventario();
     try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { }
@@ -3603,6 +3646,7 @@ function json(obj) {
     const nP = state.pendientes.filter(p => p.estado !== 'Resuelto').length;
     setCount('#navPendCount', nP || '');
     setCount('#navEqCount', state.equipos.length || '');
+    setCount('#navEmpCount', state.empresas.length || '');
   }
   // Re-render de las vistas derivadas tras cualquier cambio de datos
   function touch() {
@@ -3610,6 +3654,58 @@ function json(obj) {
     if (panelActive('inicio')) renderInicio();
     if (panelActive('inventario')) renderInventario();
     if (panelActive('resumen')) renderResumen();
+  }
+
+  // ===== Pestaña Empresas (catálogo de servicios técnicos) =================
+  const EMP_FIELDS = [['nombre', '#empNombre'], ['rut', '#empRut'], ['direccion', '#empDireccion'], ['contacto', '#empContacto'], ['telefono', '#empTelefono'], ['correo', '#empCorreo'], ['notas', '#empNotas']];
+  function empFormGet() { const o = {}; EMP_FIELDS.forEach(f => o[f[0]] = $(f[1]).value.trim()); return o; }
+  function empFormSet(e) { EMP_FIELDS.forEach(f => { $(f[1]).value = (e && e[f[0]]) || ''; }); }
+  function empFormReset() {
+    empFormSet(null); state.empEditIdx = null;
+    $('#empGuardar').textContent = '➕ Agregar empresa';
+    $('#empCancelar').style.display = 'none';
+    showInline($('#empMsg'), '', '');
+  }
+  function renderEmpresas() {
+    const cols = ['#', 'Nombre', 'RUT', 'Dirección', 'Contacto', 'Teléfono', 'Correo', 'Notas', '', ''];
+    const head = '<tr>' + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
+    const lista = state.empresas.map((e, i) => ({ e, i })).sort((a, b) => String(a.e.nombre).localeCompare(String(b.e.nombre), 'es'));
+    const rows = lista.map((x, k) =>
+      '<tr><td>' + (k + 1) + '</td><td><b>' + esc(x.e.nombre) + '</b></td><td>' + esc(x.e.rut || '—') + '</td><td>' + esc(x.e.direccion || '—') +
+      '</td><td>' + esc(x.e.contacto || '—') + '</td><td>' + (x.e.telefono ? '<a href="tel:' + esc(x.e.telefono) + '">' + esc(x.e.telefono) + '</a>' : '—') +
+      '</td><td>' + (x.e.correo ? '<a href="mailto:' + esc(x.e.correo) + '">' + esc(x.e.correo) + '</a>' : '—') + '</td><td>' + esc(x.e.notas || '—') +
+      '</td><td><button class="btn btn-ghost btn-sm" title="Editar" data-edit="' + x.i + '" style="margin-top:0;padding:4px 9px">✏️</button></td>' +
+      '<td><button class="btn btn-del" title="Eliminar" data-del="' + x.i + '">✕</button></td></tr>').join('');
+    const t = $('#empresasTable');
+    t.innerHTML = head + (rows || '<tr><td colspan="10" class="nomatch">Aún no hay empresas. Agrega la primera con el formulario de arriba; quedará disponible en los eventos correctivos.</td></tr>');
+    t.querySelectorAll('button[data-edit]').forEach(b => b.addEventListener('click', () => {
+      const i = +b.dataset.edit; state.empEditIdx = i; empFormSet(state.empresas[i]);
+      $('#empGuardar').textContent = '💾 Guardar cambios';
+      $('#empCancelar').style.display = '';
+      showInline($('#empMsg'), 'ok', 'Editando: ' + esc(state.empresas[i].nombre));
+    }));
+    t.querySelectorAll('button[data-del]').forEach(b => b.addEventListener('click', () => {
+      const i = +b.dataset.del;
+      if (!confirm('¿Eliminar la empresa "' + state.empresas[i].nombre + '" del catálogo? (Los eventos ya registrados conservan su nombre.)')) return;
+      state.empresas.splice(i, 1);
+      saveEmpresas(); renderEmpresas(); renderSidebarCounts(); autoExportSheets();
+    }));
+    renderSidebarCounts();
+  }
+  function guardarEmpresa() {
+    const o = empFormGet();
+    if (!o.nombre) { showInline($('#empMsg'), 'err', 'El nombre es obligatorio.'); return; }
+    const dup = empresaPorNombre(o.nombre);
+    if (state.empEditIdx == null && dup) { showInline($('#empMsg'), 'err', 'Ya existe una empresa con ese nombre.'); return; }
+    if (state.empEditIdx != null) {
+      const old = state.empresas[state.empEditIdx];
+      state.empresas[state.empEditIdx] = Object.assign({}, old, o, { actualizadoEl: nowIso() });
+      setStatus('✏️ Empresa actualizada: <b>' + esc(o.nombre) + '</b>.', 'ok');
+    } else {
+      state.empresas.push(Object.assign({ empId: uid('E'), registradoEl: nowIso() }, o));
+      setStatus('✅ Empresa agregada: <b>' + esc(o.nombre) + '</b>. Ya está disponible en los eventos correctivos.', 'ok');
+    }
+    saveEmpresas(); empFormReset(); renderEmpresas(); autoExportSheets();
   }
 
   // ===== Pantalla Inicio (panel de indicadores) ===========================
@@ -3643,6 +3739,11 @@ function json(obj) {
       state.equipos.forEach(eq => { const c = cats[eq.id]; if (c === 'No operativo') noOp++; else if (c === 'En servicio técnico') st++; });
     }
     const chips = [];
+    if (state.events.length && m.pend.length) {
+      const atrasado = now.getDate() >= 20;
+      chips.push('<button class="alertchip ' + (atrasado ? 'a-err' : 'a-st') + '" type="button" data-go="mes-pend"><span class="n">⏰</span>' +
+        m.pend.length + ' MP de ' + esc(MP.MONTHS_FULL[mi]) + (atrasado ? ' atrasadas (aún sin registrar)' : ' por registrar') + '</button>');
+    }
     if (vencidos) chips.push('<button class="alertchip a-err" type="button" data-go="pendientes"><span class="n">📌</span>' + vencidos + ' pendiente(s) vencido(s)</button>');
     if (noOp) chips.push('<button class="alertchip a-err" type="button" data-go="inv-noop"><span class="n">🔴</span>' + noOp + ' equipo(s) no operativo(s)</button>');
     if (st) chips.push('<button class="alertchip a-st" type="button" data-go="inv-st"><span class="n">🟠</span>' + st + ' en servicio técnico</button>');
@@ -3680,6 +3781,7 @@ function json(obj) {
     el.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => {
       const g = b.dataset.go;
       if (g === 'pendientes') goTab('pendientes');
+      else if (g === 'mes-pend') { state.resSel = { mi: mi, metric: 'pend' }; goTab('resumen'); }
       else if (g === 'inv-noop') { goTab('inventario'); setInvFilter('No operativo'); }
       else if (g === 'inv-st') { goTab('inventario'); setInvFilter('En servicio técnico'); }
     }));
@@ -3938,6 +4040,16 @@ function json(obj) {
       pairs = [['Tipo de evento', e.tipoEvento], ['Fecha', fmtDate(e.fecha)],
         ['Folio solicitud', e.folioSolicitud], ['Folio guía', e.folioGuia], ['N° envío', e.nEnvio],
         ['Empresa', e.empresa], ['Ejecutor', e.ejecutor], ['Estado final', e.estadoFinal]];
+      if (e.casoId) {
+        const delCaso = state.correctivos.filter(c => String(c.id) === String(e.id) && (c.casoId || c.corrId) === e.casoId);
+        const root = delCaso.find(c => c.tipoEvento === 'Solicitud de trabajo');
+        pairs.push(['Caso', root ? ('Solicitud ' + (root.folioSolicitud || '') + (root.fecha instanceof Date ? ' · ' + fmtDate(root.fecha) : '')) : ('Caso ' + e.casoId)]);
+        if (e.tipoEvento === 'Recepción' && e.fecha instanceof Date) {
+          const envio = delCaso.filter(c => c.tipoEvento === 'Envío a servicio técnico' && c.fecha instanceof Date && c.fecha.getTime() <= e.fecha.getTime())
+            .sort((a, b) => b.fecha - a.fecha)[0];
+          if (envio) pairs.push(['🕒 Días en servicio técnico', String(Math.round((e.fecha - envio.fecha) / 86400000))]);
+        }
+      }
     } else {
       pairs = [['Tipo', e.tipo], ['Fecha de compromiso', fmtDate(e.fechaCompromiso)], ['Estado', e.estado || 'Abierto'],
         ['Resp. administrativo', e.respAdministrativo], ['Resp. ejecución', e.respEjecucion],
@@ -3962,7 +4074,8 @@ function json(obj) {
         '<button class="btn btn-ghost btn-sm" type="button" data-evdel="' + i + '" style="margin-top:0;color:var(--err)">🗑 Eliminar registro</button>';
     } else if (it.kind === 'corr') {
       const i = state.correctivos.indexOf(e);
-      if (i >= 0) acc = '<button class="btn btn-ghost btn-sm" type="button" data-evedit="corr:' + i + '" style="margin-top:0">✏️ Editar</button>';
+      if (i >= 0) acc = '<button class="btn btn-ghost btn-sm" type="button" data-evedit="corr:' + i + '" style="margin-top:0">✏️ Editar</button> ' +
+        '<button class="btn btn-ghost btn-sm" type="button" data-evdelc="' + i + '" style="margin-top:0;color:var(--err)">🗑 Eliminar</button>';
     } else if (it.kind === 'pend') {
       const i = state.pendientes.indexOf(e);
       if (i >= 0) acc = '<button class="btn btn-ghost btn-sm" type="button" data-evedit="pend:' + i + '" style="margin-top:0">✏️ Editar</button> ' +
@@ -4035,17 +4148,15 @@ function json(obj) {
     }).join('') + '</tr>';
     const filaEje = '<tr><td style="font-weight:700">Ejecutor</td>' + MP.MONTHS.map((m, i) => {
       const e = byMes[i]; const x = e && e.ejecutor ? e.ejecutor : '';
-      const ini = x ? x.split(/\s+/).map(s => s[0]).join('').slice(0, 3).toUpperCase() : '';
-      return '<td style="' + tdBase + (ini ? '' : 'color:#b8c5ca') + '"' + (x ? ' title="' + esc(x) + '"' : '') + '>' + (ini ? esc(ini) : '·') + '</td>';
+      return '<td style="' + tdBase + 'font-size:11px;' + (x ? '' : 'color:#b8c5ca') + '">' + (x ? esc(x) : '·') + '</td>';
     }).join('') + '</tr>';
     const filaEst = '<tr><td style="font-weight:700">Estado</td>' + MP.MONTHS.map((m, i) => {
       const e = byMes[i];
       if (!e) return '<td style="' + tdBase + 'color:#b8c5ca">·</td>';
-      const corto = e.estado.indexOf('Realizada') === 0 ? '✔' : e.estado === 'Reprogramada' ? '↻' : e.estado.indexOf('Pendiente') === 0 ? '⏳' : e.estado === 'Fuera de Servicio' ? 'FS' : e.estado === 'No Realizada' ? '✖' : e.estado === 'Baja' ? '⛔' : e.estado.slice(0, 2);
-      return '<td style="' + tdBase + '" title="' + esc(e.estado) + '"><span class="pill" style="' + estadoStyle(e.estado) + '">' + corto + '</span></td>';
+      return '<td style="' + tdBase + '"><span class="pill" style="' + estadoStyle(e.estado) + ';font-size:10.5px">' + esc(e.estado) + '</span></td>';
     }).join('') + '</tr>';
     return '<div class="section-title" style="font-size:14px;margin-top:14px">📅 Plan preventivo 2026</div>' +
-      '<div class="muted" style="margin:2px 0 6px;font-size:12.5px">Una columna por mes. <b>Clic en un mes con programa</b> (fondo celeste) para registrar esa mantención. ✔ realizada · ↻ reprogramada · ⏳ pendiente.</div>' +
+      '<div class="muted" style="margin:2px 0 6px;font-size:12.5px">Una columna por mes. <b>Clic en un mes con programa</b> (fondo celeste) para registrar esa mantención.</div>' +
       '<div class="tablewrap"><table class="prev" style="white-space:nowrap">' + hdr + filaProg + filaRes + filaEje + filaEst + '</table></div>';
   }
 
@@ -4070,9 +4181,14 @@ function json(obj) {
     const head = '<div class="section-title" style="font-size:14px">📋 Datos del equipo</div>' + grid + obs;
 
     // Línea de tiempo unificada (preventivos + correctivos + pendientes), reciente primero
-    const tl = equipoTimeline(eq);
+    const tlTodos = equipoTimeline(eq);
+    const hf = state.histFilter || 'todos';
+    const tl = (hf === 'todos') ? tlTodos : tlTodos.filter(it => it.tipo === hf);
+    const nDe = t => tlTodos.filter(it => it.tipo === t).length;
+    const histChips = '<div class="pviews" style="margin:0 0 8px">' + [['todos', 'Todos (' + tlTodos.length + ')'], ['Preventivo', 'Preventivos (' + nDe('Preventivo') + ')'], ['Correctivo', 'Correctivos (' + nDe('Correctivo') + ')'], ['Pendiente', 'Pendientes (' + nDe('Pendiente') + ')']]
+      .map(x => '<button class="pview' + (hf === x[0] ? ' active' : '') + '" type="button" data-hf="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>';
     let body;
-    if (!tl.length) {
+    if (!tlTodos.length) {
       body = '<div class="muted" style="margin-top:10px">Este equipo aún no tiene eventos (preventivos, correctivos ni pendientes) en 2026.</div>';
     } else {
       const cols = ['Fecha', 'Tipo', 'Evento', 'Resultado / Estado', 'Ejecutor / Resp.', 'Estado final'];
@@ -4089,8 +4205,9 @@ function json(obj) {
           '<span class="section-title" style="font-size:14px">📜 Historial de eventos <span class="muted" style="font-weight:600">(más reciente primero · ' + tl.length + ')</span></span>' +
           '<button id="detExport" class="btn btn-accent btn-sm" type="button" style="margin-top:0">⬇️ Exportar a Excel</button>' +
         '</div>' +
+        histChips +
         '<div class="muted" style="margin:0 0 6px;font-size:12.5px">Clic en una fila para ver el detalle completo.</div>' +
-        '<div class="tablewrap"><table class="prev">' + h + rows + '</table></div>';
+        '<div class="tablewrap"><table class="prev">' + h + (rows || '<tr><td colspan="6" class="nomatch">Sin eventos de este tipo.</td></tr>') + '</table></div>';
     }
 
     $('#equipoDetalle').innerHTML = efBanner + head + matrizPreventiva(eq) + body +
@@ -4100,6 +4217,8 @@ function json(obj) {
         '<button id="detPendiente" class="btn btn-ghost btn-sm" type="button">📌 Registrar pendiente</button>' +
       '</div>';
     $('#equipoDetalle').style.display = 'block';
+    $('#equipoDetalle').querySelectorAll('button[data-hf]').forEach(b =>
+      b.addEventListener('click', () => { state.histFilter = b.dataset.hf; renderDetalle(eq); }));
     // Matriz: clic en un mes programado -> registrar esa mantención (fecha prellenada)
     $('#equipoDetalle').querySelectorAll('.mescelda[data-mmi]').forEach(td =>
       td.addEventListener('click', () => {
@@ -4134,6 +4253,16 @@ function json(obj) {
         state.registros.splice(+b.dataset.evdel, 1);
         saveRegistros(); renderPreview(); renderDiscrepancias();
         renderDetalle(eq);
+        autoExportSheets();
+      }));
+    $('#equipoDetalle').querySelectorAll('button[data-evdelc]').forEach(b =>
+      b.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if (!confirm('¿Eliminar este evento correctivo? Esta acción no se puede deshacer.')) return;
+        state.correctivos.splice(+b.dataset.evdelc, 1);
+        saveCorrectivos();
+        renderDetalle(eq);
+        touch();
         autoExportSheets();
       }));
     const exp = $('#detExport'); if (exp) exp.addEventListener('click', () => exportEquipo(eq, exp));
@@ -4189,6 +4318,14 @@ function json(obj) {
     $('#mSave').disabled = true;
     showInline($('#mFechaMsg'), '', '');
     showInline($('#modalMsg'), '', '');
+    const dM = loadDraftObj('m');
+    if (dM && dM.eqId === String(eq.id) && (dM.fecha || dM.resultado || dM.obs || dM.ejecutor)) {
+      if (dM.fecha) { $('#mFecha').value = dM.fecha; onDateChange(); }
+      $('#mResultado').value = dM.resultado || ''; $('#mObs').value = dM.obs || '';
+      $('#mEjecutor').value = dM.ejecutor || ''; $('#mEstadoFinal').value = dM.estadoFinal || '';
+      updateEstadoFinal(); updateSave();
+      showInline($('#modalMsg'), 'ok', '📝 Se restauró un borrador no guardado de este equipo.');
+    }
     $('#modal').classList.add('show');
     setTimeout(() => $('#mFecha').focus(), 50);
   }
@@ -4285,6 +4422,7 @@ function json(obj) {
       reg.registradoEl = nowIso();
       state.registros.push(reg);
     }
+    clearDraft('m');
     saveRegistros();   // persistir en el navegador
     closeModal();
     renderRegistry();
@@ -4355,6 +4493,26 @@ function json(obj) {
       ? '<a href="' + esc(o.archivoUrl) + '" target="_blank" rel="noopener" title="' + esc(o.archivoNombre || 'Ver adjunto') + '">📎</a>'
       : '<span class="muted">—</span>';
   }
+  // ---- Borradores automáticos: lo tipeado se conserva ante cierres/accidentes ---
+  const DRAFT_KEYS = { m: 'mp_borrador_m', c: 'mp_borrador_c', p: 'mp_borrador_p' };
+  function saveDraftObj(kind, obj) { try { localStorage.setItem(DRAFT_KEYS[kind], JSON.stringify(obj)); } catch (e) { } }
+  function loadDraftObj(kind) { try { const r = localStorage.getItem(DRAFT_KEYS[kind]); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+  function clearDraft(kind) { try { localStorage.removeItem(DRAFT_KEYS[kind]); } catch (e) { } }
+  function saveMDraft() {
+    if (!state.selEq || state.editIdx != null) return;
+    saveDraftObj('m', { eqId: String(state.selEq.id), fecha: $('#mFecha').value, resultado: $('#mResultado').value, obs: $('#mObs').value, ejecutor: $('#mEjecutor').value, estadoFinal: $('#mEstadoFinal').value });
+  }
+  function saveCDraft() {
+    if (!state.cEq || state.cEditIdx != null) return;
+    const f = {};
+    document.querySelectorAll('#cFields input, #cFields select, #cFields textarea').forEach(el => { if (el.id) f[el.id] = el.value; });
+    saveDraftObj('c', { eqId: String(state.cEq.id), tipo: $('#cTipo').value, campos: f });
+  }
+  function savePDraft() {
+    if (!state.pEq || state.pEditIdx != null) return;
+    saveDraftObj('p', { eqId: String(state.pEq.id), tipo: $('#pTipo').value, fecha: $('#pFecha').value, respAdmin: $('#pRespAdmin').value, respEjec: $('#pRespEjec').value, obs: $('#pObs').value });
+  }
+
   // Abre Google Calendar con el evento prellenado (recordatorio de día completo)
   function abrirCalendario(title, dateObj, details, location) {
     const d = (dateObj instanceof Date && !isNaN(dateObj.getTime())) ? dateObj : new Date();
@@ -4413,46 +4571,9 @@ function json(obj) {
   }
 
   // ---- Eventos correctivos: tabla -----------------------------------------
-  function renderCorrectivos() {
-    const wrap = $('#correctivosWrap');
-    if (!state.correctivos.length) { wrap.style.display = 'none'; touch(); return; }
-    wrap.style.display = 'block';
-    const term = ($('#correctivosFilter') ? $('#correctivosFilter').value : '').trim().toLowerCase();
-    const eqf = scopeEqId();   // acotar al equipo seleccionado (o null = todos)
-    const cols = ['#', 'ID', 'Equipo', 'Tipo de Evento', 'Fecha', 'Folio', 'N° Envío', 'Empresa', 'Ejecutor', 'Estado Final', 'Adjunto', '📅', '', ''];
-    const head = '<tr>' + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
-    let shown = 0;
-    const rows = state.correctivos.map((c, i) => {
-      if (eqf && String(c.id) !== eqf) return '';
-      const hay = [c.id, c.equipo, c.serie, c.inv, c.tipoEvento, fmtDate(c.fecha), c.folioSolicitud, c.folioGuia, c.nEnvio, c.empresa, c.ejecutor, c.descripcion, c.estadoFinal].join(' ').toLowerCase();
-      if (term && hay.indexOf(term) === -1) return '';
-      shown++;
-      return '<tr><td>' + (i + 1) + '</td><td>' + esc(c.id) + '</td><td>' + esc(c.equipo) + '</td><td>' + esc(c.tipoEvento) +
-        '</td><td>' + esc(fmtDate(c.fecha)) + '</td><td>' + esc(c.folioSolicitud || c.folioGuia) + '</td><td>' + esc(c.nEnvio) +
-        '</td><td>' + esc(c.empresa) + '</td><td>' + esc(c.ejecutor) + '</td><td>' + esc(c.estadoFinal) +
-        '</td><td>' + adjCell(c) + '</td>' +
-        '<td><button class="btn btn-ghost btn-sm" title="Agregar a Google Calendar" data-cal="' + i + '" style="margin-top:0;padding:4px 8px">📅</button></td>' +
-        '<td><button class="btn btn-ghost btn-sm" title="Editar" data-edit="' + i + '" style="margin-top:0;padding:4px 9px">✏️</button></td>' +
-        '<td><button class="btn btn-del" title="Eliminar" data-del="' + i + '">✕</button></td></tr>';
-    }).join('');
-    $('#correctivosCount').textContent = (eqf || term) ? (shown + ' / ' + state.correctivos.length) : state.correctivos.length;
-    renderScopeNote('#correctivosScope', shown);
-    const t = $('#correctivosTable');
-    t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="14" class="nomatch">' + (eqf ? 'Este equipo no tiene eventos correctivos.' : 'Sin coincidencias para el filtro.') + '</td></tr>');
-    t.querySelectorAll('button[data-cal]').forEach(b =>
-      b.addEventListener('click', () => calCorrectivo(state.correctivos[+b.dataset.cal])));
-    t.querySelectorAll('button[data-edit]').forEach(b =>
-      b.addEventListener('click', () => editCorrectivo(+b.dataset.edit)));
-    t.querySelectorAll('button[data-del]').forEach(b =>
-      b.addEventListener('click', () => {
-        if (!confirm('¿Eliminar este evento correctivo? Esta acción no se puede deshacer.')) return;
-        state.correctivos.splice(+b.dataset.del, 1);
-        saveCorrectivos(); renderCorrectivos();
-        if (state.selDetalleEq) renderDetalle(state.selDetalleEq);
-        autoExportSheets();
-      }));
-    touch();
-  }
+  // Los eventos correctivos se ven, editan y eliminan en la FICHA del equipo
+  // (historial). El panel Registrar muestra solo los Pendientes.
+  function renderCorrectivos() { touch(); }
 
   // ---- Modal de evento correctivo -----------------------------------------
   const CORR_OPCIONALES = new Set(['descripcion']);   // campos no obligatorios
@@ -4464,29 +4585,78 @@ function json(obj) {
     return '<select id="' + id + '"><option value="">— Seleccione —</option>' +
       items.map(v => '<option value="' + esc(v) + '">' + esc(v) + '</option>').join('') + '</select>';
   }
+  // Casos del equipo: correctivos agrupables (Solicitud abre caso; Envío/Recepción/Reporte se asocian)
+  function casosDelEquipo(eqId) {
+    const list = state.correctivos.filter(c => String(c.id) === String(eqId));
+    const out = [];
+    list.forEach(c => {
+      const cid = c.casoId || c.corrId;
+      if (!out.some(x => x.cid === cid)) {
+        const root = list.find(r => (r.casoId || r.corrId) === cid && r.tipoEvento === 'Solicitud de trabajo') || c;
+        out.push({ cid: cid, label: (root.tipoEvento || 'Caso') + (root.folioSolicitud ? ' ' + root.folioSolicitud : root.folioGuia ? ' ' + root.folioGuia : '') + (root.fecha instanceof Date ? ' · ' + fmtDate(root.fecha) : ''), fecha: root.fecha });
+      }
+    });
+    out.sort((a, b) => ((b.fecha instanceof Date) ? b.fecha.getTime() : 0) - ((a.fecha instanceof Date) ? a.fecha.getTime() : 0));
+    return out;
+  }
   function renderCFields() {
     const tipo = $('#cTipo').value;
     const cont = $('#cFields');
     if (!tipo) { cont.innerHTML = ''; updateCSave(); return; }
     const keys = MP.CORRECTIVO_CAMPOS[tipo] || [];
-    cont.innerHTML = keys.map(k => {
+    let html = keys.map(k => {
       const label = MP.CORRECTIVO_LABELS[k] || k;
       if (k === 'ejecutor') return cField(k, label, cSelectHTML('cf_' + k, MP.EJECUTORES));
       if (k === 'estadoFinal') return cField(k, label, cSelectHTML('cf_' + k, MP.ESTADO_FINAL_OPCIONES));
+      if (k === 'empresa') {
+        const nombres = state.empresas.map(e => e.nombre).filter(Boolean).sort((a, b) => a.localeCompare(b, 'es'));
+        return '<div class="field"><label for="cf_empresa">Empresa <span class="req">*</span></label>' +
+          '<select id="cf_empresa"><option value="">— Seleccione —</option>' +
+          nombres.map(v => '<option value="' + esc(v) + '">' + esc(v) + '</option>').join('') +
+          '<option value="__otra__">➕ Otra (escribir nueva)…</option></select>' +
+          '<input id="cf_empresa_otra" type="text" autocomplete="off" placeholder="Nombre de la nueva empresa (se agrega al catálogo)" style="display:none;margin-top:6px" />' +
+          '<div class="muted" style="font-size:12px;margin-top:3px">Las empresas se administran en la pestaña 🏢 Empresas.</div></div>';
+      }
       if (k === 'descripcion') return cField(k, label, '<textarea id="cf_' + k + '"></textarea>');
       if (k === 'fecha') return cField(k, label, '<input id="cf_' + k + '" type="date" min="2020-01-01" max="2026-12-31">');
       return cField(k, label, '<input id="cf_' + k + '" type="text" autocomplete="off">');
     }).join('');
+    // Asociar a un caso (ciclo correctivo) para Envío / Recepción / Reporte
+    if (tipo !== 'Solicitud de trabajo' && state.cEq) {
+      const casos = casosDelEquipo(state.cEq.id);
+      if (casos.length) {
+        html += '<div class="field"><label for="cf_caso">🔗 Asociar a caso (opcional) — enlaza el ciclo solicitud → envío → recepción</label>' +
+          '<select id="cf_caso"><option value="">— Sin asociar —</option>' +
+          casos.map(c => '<option value="' + esc(c.cid) + '">' + esc(c.label) + '</option>').join('') + '</select></div>';
+      }
+    }
+    cont.innerHTML = html;
+    // preseleccionar el caso más reciente para Envío/Recepción
+    const cfCaso = $('#cf_caso');
+    if (cfCaso && (tipo === 'Envío a servicio técnico' || tipo === 'Recepción') && cfCaso.options.length > 1) cfCaso.selectedIndex = 1;
+    const empSel = $('#cf_empresa');
+    if (empSel) empSel.addEventListener('change', () => {
+      const otra = $('#cf_empresa_otra');
+      if (otra) otra.style.display = (empSel.value === '__otra__') ? 'block' : 'none';
+      updateCSave();
+    });
     cont.querySelectorAll('input,select,textarea').forEach(el => {
-      el.addEventListener('input', updateCSave); el.addEventListener('change', updateCSave);
+      el.addEventListener('input', () => { updateCSave(); saveCDraft(); });
+      el.addEventListener('change', () => { updateCSave(); saveCDraft(); });
     });
     updateCSave();
+  }
+  function cEmpresaValor() {
+    const sel = $('#cf_empresa'); if (!sel) return '';
+    if (sel.value === '__otra__') { const o = $('#cf_empresa_otra'); return o ? o.value.trim() : ''; }
+    return sel.value;
   }
   function updateCSave() {
     const tipo = $('#cTipo').value;
     let ok = !!tipo && !!state.cEq;
     if (ok) (MP.CORRECTIVO_CAMPOS[tipo] || []).forEach(k => {
       if (CORR_OPCIONALES.has(k)) return;
+      if (k === 'empresa') { if (!cEmpresaValor()) ok = false; return; }
       const el = $('#cf_' + k); if (!el || !String(el.value).trim()) ok = false;
     });
     $('#cSave').disabled = !ok;
@@ -4520,6 +4690,15 @@ function json(obj) {
     $('#cFile').value = ''; $('#cFileDesc').value = ''; $('#cAttachField').style.display = sheetsReady() ? 'block' : 'none';
     showInline($('#cmodalMsg'), '', '');
     $('#cSave').disabled = true;
+    const dC = loadDraftObj('c');
+    if (dC && dC.eqId === String(eq.id) && dC.tipo) {
+      $('#cTipo').value = dC.tipo; renderCFields();
+      for (const fid in (dC.campos || {})) { const el = document.getElementById(fid); if (el) el.value = dC.campos[fid]; }
+      const o = $('#cf_empresa_otra'); const selE = $('#cf_empresa');
+      if (o && selE && selE.value === '__otra__') o.style.display = 'block';
+      updateCSave();
+      showInline($('#cmodalMsg'), 'ok', '📝 Se restauró un borrador no guardado de este equipo.');
+    }
     $('#cmodal').classList.add('show');
   }
   function closeCModal() { $('#cmodal').classList.remove('show'); state.cEq = null; state.cEditIdx = null; }
@@ -4537,9 +4716,16 @@ function json(obj) {
     $('#cTipo').value = c.tipoEvento || '';
     renderCFields();
     (MP.CORRECTIVO_CAMPOS[c.tipoEvento] || []).forEach(k => {
+      if (k === 'empresa') {
+        const sel = $('#cf_empresa'); if (!sel) return;
+        if (c.empresa && empresaPorNombre(c.empresa)) sel.value = empresaPorNombre(c.empresa).nombre;
+        else if (c.empresa) { sel.value = '__otra__'; const o = $('#cf_empresa_otra'); if (o) { o.style.display = 'block'; o.value = c.empresa; } }
+        return;
+      }
       const el = $('#cf_' + k); if (!el) return;
       el.value = (k === 'fecha') ? (c.fecha instanceof Date ? isoDate(c.fecha) : '') : (c[k] || '');
     });
+    const cfCaso = $('#cf_caso'); if (cfCaso) cfCaso.value = c.casoId || '';
     updateCSave();
   }
 
@@ -4549,13 +4735,26 @@ function json(obj) {
     const data = { tipoEvento: tipo };
     const keys = MP.CORRECTIVO_CAMPOS[tipo] || [];
     for (const k of keys) {
-      const el = $('#cf_' + k); let v = el ? el.value : '';
-      if (k === 'fecha' && v) { const p = v.split('-'); v = new Date(+p[0], +p[1] - 1, +p[2]); }
-      else v = String(v).trim();
+      let v;
+      if (k === 'empresa') {
+        v = cEmpresaValor();
+        // Si es una empresa nueva, se agrega sola al catálogo (los datos se completan en 🏢 Empresas)
+        if (v && !empresaPorNombre(v)) {
+          state.empresas.push({ empId: uid('E'), nombre: v, rut: '', direccion: '', contacto: '', telefono: '', correo: '', notas: '', registradoEl: nowIso() });
+          saveEmpresas(); renderSidebarCounts();
+        }
+      } else {
+        const el = $('#cf_' + k); v = el ? el.value : '';
+        if (k === 'fecha' && v) { const p = v.split('-'); v = new Date(+p[0], +p[1] - 1, +p[2]); }
+        else v = String(v).trim();
+      }
       if (!v && !CORR_OPCIONALES.has(k)) { showInline($('#cmodalMsg'), 'err', 'Complete los campos obligatorios (*).'); return; }
       data[k] = v;
     }
     const corr = MP.buildCorrectivo(eq, data);
+    // Ciclo correctivo: la solicitud abre un caso; el resto se asocia al elegido
+    const cfCaso = $('#cf_caso');
+    corr.casoId = (tipo === 'Solicitud de trabajo') ? '' : ((cfCaso && cfCaso.value) || '');
     const attFile = $('#cFile') ? $('#cFile').files[0] : null;
     const attDesc = $('#cFileDesc') ? $('#cFileDesc').value.trim() : '';
     const remVal = $('#cRecordatorio') ? $('#cRecordatorio').value : '';   // capturar antes de cerrar
@@ -4563,15 +4762,18 @@ function json(obj) {
     if (cEdit != null && state.correctivos[cEdit]) {
       const old = state.correctivos[cEdit];
       corr.corrId = old.corrId || uid('C');
+      if (tipo === 'Solicitud de trabajo') corr.casoId = old.casoId || corr.corrId;
       corr.registradoEl = old.registradoEl || nowIso();
       corr.actualizadoEl = nowIso();
       if (old.archivoUrl) { corr.archivoUrl = old.archivoUrl; corr.archivoNombre = old.archivoNombre; }
       state.correctivos[cEdit] = corr;
     } else {
       corr.corrId = uid('C');
+      if (tipo === 'Solicitud de trabajo') corr.casoId = corr.corrId;
       corr.registradoEl = nowIso();
       state.correctivos.push(corr);
     }
+    clearDraft('c');
     saveCorrectivos();
     closeCModal();
     renderCorrectivos();
@@ -4782,6 +4984,13 @@ function json(obj) {
     $('#pFile').value = ''; $('#pFileDesc').value = ''; $('#pAttachField').style.display = sheetsReady() ? 'block' : 'none';
     showInline($('#pmodalMsg'), '', '');
     $('#pSave').disabled = true;
+    const dP = loadDraftObj('p');
+    if (dP && dP.eqId === String(eq.id) && (dP.tipo || dP.obs)) {
+      $('#pTipo').value = dP.tipo || ''; $('#pFecha').value = dP.fecha || '';
+      $('#pRespAdmin').value = dP.respAdmin || ''; $('#pRespEjec').value = dP.respEjec || ''; $('#pObs').value = dP.obs || '';
+      updatePSave();
+      showInline($('#pmodalMsg'), 'ok', '📝 Se restauró un borrador no guardado de este equipo.');
+    }
     $('#pmodal').classList.add('show');
   }
   // Fija la fecha de compromiso a N días hábiles (o N días corridos) desde hoy.
@@ -4841,6 +5050,7 @@ function json(obj) {
       pend.registradoEl = nowIso();
       state.pendientes.push(pend);
     }
+    clearDraft('p');
     savePendientes();
     closePModal();
     renderPendientes();
@@ -5135,7 +5345,6 @@ function json(obj) {
     saveRegistros(); renderRegistry(); renderPreview(); renderDiscrepancias();
     setStatus('Registros eliminados.', 'info');
   });
-  $('#correctivosFilter').addEventListener('input', renderCorrectivos);
   $('#inventarioFilter').addEventListener('input', renderInventario);
 
   // Utilidades PDF
@@ -5177,15 +5386,19 @@ function json(obj) {
     if (!$('#suggest').contains(e.target) && e.target !== $('#searchInput')) hideSuggest();
   });
 
-  $('#mFecha').addEventListener('change', onDateChange);
-  $('#mFecha').addEventListener('input', onDateChange);
+  $('#mFecha').addEventListener('change', () => { onDateChange(); saveMDraft(); });
+  $('#mFecha').addEventListener('input', () => { onDateChange(); saveMDraft(); });
+  ['#mObs', '#mResultado', '#mEjecutor', '#mEstadoFinal'].forEach(sel =>
+    $(sel).addEventListener('input', saveMDraft));
+  ['#mResultado', '#mEjecutor', '#mEstadoFinal'].forEach(sel =>
+    $(sel).addEventListener('change', saveMDraft));
   $('#mResultado').addEventListener('change', () => { updateEstadoFinal(); updateSave(); });
   ['#mEjecutor', '#mEstadoFinal'].forEach(s => $(s).addEventListener('change', updateSave));
   $('#mSave').addEventListener('click', saveRegistro);
   $('#mRem7').addEventListener('click', () => { const t = new Date(); t.setDate(t.getDate() + 7); $('#mRecordatorio').value = isoDate(t); });
   $('#mRem30').addEventListener('click', () => { const t = new Date(); t.setDate(t.getDate() + 30); $('#mRecordatorio').value = isoDate(t); });
   $('#mRemClear').addEventListener('click', () => { $('#mRecordatorio').value = ''; });
-  const mTryClose = () => { if (!mDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) closeModal(); };
+  const mTryClose = () => { if (!mDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) { clearDraft('m'); closeModal(); } };
   $('#mCancel').addEventListener('click', mTryClose);
   $('#mClose').addEventListener('click', mTryClose);
   $('#status').addEventListener('click', () => { $('#status').style.display = 'none'; });
@@ -5193,50 +5406,49 @@ function json(obj) {
   function mDirty() { return !!($('#mFecha').value || $('#mResultado').value || $('#mObs').value.trim() || $('#mEjecutor').value || $('#mEstadoFinal').value); }
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && $('#modal').classList.contains('show')) {
-      if (!mDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) closeModal();
+      if (!mDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) { clearDraft('m'); closeModal(); }
     }
   });
 
   // Evento correctivo
-  $('#cTipo').addEventListener('change', renderCFields);
+  $('#cTipo').addEventListener('change', () => { renderCFields(); saveCDraft(); });
   $('#cSave').addEventListener('click', saveCorrectivo);
   // Recordatorio: atajos de fecha
   $('#cRem7').addEventListener('click', () => { const t = new Date(); t.setDate(t.getDate() + 7); $('#cRecordatorio').value = isoDate(t); });
   $('#cRem30').addEventListener('click', () => { const t = new Date(); t.setDate(t.getDate() + 30); $('#cRecordatorio').value = isoDate(t); });
   $('#cRemClear').addEventListener('click', () => { $('#cRecordatorio').value = ''; });
-  const cTryClose = () => { if (!cDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) closeCModal(); };
+  const cTryClose = () => { if (!cDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) { clearDraft('c'); closeCModal(); } };
   $('#cCancel').addEventListener('click', cTryClose);
   $('#cClose').addEventListener('click', cTryClose);
   function cDirty() { if ($('#cTipo').value) return true; let d = false; document.querySelectorAll('#cFields input, #cFields select, #cFields textarea').forEach(el => { if (String(el.value).trim()) d = true; }); return d; }
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && $('#cmodal').classList.contains('show')) {
-      if (!cDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) closeCModal();
+      if (!cDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) { clearDraft('c'); closeCModal(); }
     }
-  });
-  $('#clearCorr').addEventListener('click', () => {
-    if (!state.correctivos.length) return;
-    if (!confirm('¿Eliminar los ' + state.correctivos.length + ' eventos correctivos registrados?')) return;
-    state.correctivos = []; saveCorrectivos(); renderCorrectivos();
-    if (state.selDetalleEq) renderDetalle(state.selDetalleEq);
   });
 
   // Pendientes
   ['#pTipo', '#pFecha', '#pRespAdmin', '#pRespEjec', '#pObs'].forEach(s => {
-    $(s).addEventListener('input', updatePSave); $(s).addEventListener('change', updatePSave);
+    $(s).addEventListener('input', () => { updatePSave(); savePDraft(); });
+    $(s).addEventListener('change', () => { updatePSave(); savePDraft(); });
   });
   $('#pQuick3').addEventListener('click', () => { const t = new Date(); t.setHours(0, 0, 0, 0); setPFecha(addBusinessDays(t, 3)); });
   $('#pQuick7').addEventListener('click', () => { const t = new Date(); t.setHours(0, 0, 0, 0); t.setDate(t.getDate() + 7); setPFecha(t); });
   $('#pSave').addEventListener('click', savePendiente);
-  const pTryClose = () => { if (!pDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) closePModal(); };
+  const pTryClose = () => { if (!pDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) { clearDraft('p'); closePModal(); } };
   $('#pCancel').addEventListener('click', pTryClose);
   $('#pClose').addEventListener('click', pTryClose);
   function pDirty() { return !!($('#pTipo').value || $('#pFecha').value || $('#pRespAdmin').value || $('#pRespEjec').value || $('#pObs').value.trim()); }
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && $('#pmodal').classList.contains('show')) {
-      if (!pDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) closePModal();
+      if (!pDirty() || confirm('¿Cerrar sin guardar? Se perderá lo ingresado.')) { clearDraft('p'); closePModal(); }
     }
   });
   $('#pendientesFilter').addEventListener('input', renderPendientes);
+  // Empresas
+  $('#empGuardar').addEventListener('click', guardarEmpresa);
+  $('#empCancelar').addEventListener('click', empFormReset);
+  $('#empNombre').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); guardarEmpresa(); } });
   // Gestión de pendientes
   $('#gEstado').addEventListener('change', () => { if (state.gPend) {
     state.gPend.estado = $('#gEstado').value;
@@ -5299,6 +5511,7 @@ function json(obj) {
   state.correctivos = loadCorrectivos();
   state.pendientes = loadPendientes();
   state.archivos = loadArchivos();
+  state.empresas = loadEmpresas();
   ensureIds();   // migra registros antiguos al esquema con IDs estables
   renderCorrectivos();
   renderPendientes();

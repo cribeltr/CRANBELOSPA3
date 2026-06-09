@@ -1,5 +1,5 @@
 /****************************************************************************
- *  ===>  VERSIÓN: v12-maestro-detalle  <===  (debe coincidir con "Probar conexión")
+ *  ===>  VERSIÓN: v13-empresas-casos  <===  (debe coincidir con "Probar conexión")
  *  Puente Google Sheets — Programación MP 2026
  *  --------------------------------------------------------------------------
  *  ESTRUCTURA DE LA PLANILLA (v12, modelo maestro-detalle):
@@ -9,7 +9,7 @@
  *     equipo (inventario/nombre/familia/servicio) son FÓRMULAS que miran el
  *     maestro: una sola fuente de verdad.
  *   · CAPA DE DATOS (se actualiza EN CADA guardado, hojas pequeñas):
- *       RegistrosMP · Correctivos · Pendientes · Tareas · Bitacora · Archivos
+ *       RegistrosMP · Correctivos · Pendientes · Tareas · Bitacora · Archivos · Empresas
  *       (ID estable RegID/CorrID/PendID + 'ID Equipo' + fecha de registro;
  *       descriptores por fórmula desde el maestro).
  *   · "Resumen": indicadores con FÓRMULAS VIVAS (se recalculan solos).
@@ -60,7 +60,7 @@ function appPush(body) {
   try { return writeAll(typeof body === 'string' ? JSON.parse(body) : body); }
   finally { lock.releaseLock(); }
 }
-var APP_VERSION = 'v12-maestro-detalle';   // para confirmar qué versión está publicada (Probar conexión)
+var APP_VERSION = 'v13-empresas-casos';   // para confirmar qué versión está publicada (Probar conexión)
 function appPull() { return readAll(false); }   // sin equipos (evita el límite de tamaño de google.script.run)
 // Inventario completo: hoja "Equipos" (v11) o "_equipos" (heredada) o reconstruido desde Eventos.
 function allEquipos(ss) {
@@ -514,6 +514,7 @@ function readAll(includeEquipos) {
     ok: true, ver: APP_VERSION, count: n, data: data,
     tablas: {
       RegistrosMP: sheetVals(ss, 'RegistrosMP'),
+      Empresas: sheetVals(ss, 'Empresas'),
       Pendientes: sheetVals(ss, 'Pendientes'),
       Correctivos: sheetVals(ss, 'Correctivos'),
       Tareas: sheetVals(ss, 'Tareas'),
