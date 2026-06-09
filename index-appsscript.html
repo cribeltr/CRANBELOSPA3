@@ -1126,6 +1126,15 @@ function json(obj) {
     </div>
 
     <div id="cFields"></div>
+    <div class="field" id="cRecordatorioField">
+      <label for="cRecordatorio">📅 Recordatorio (opcional) — crea un evento en Google Calendar</label>
+      <input id="cRecordatorio" type="date" />
+      <div class="quickdates">
+        <button id="cRem7" class="btn btn-ghost btn-sm" type="button" style="margin-top:0">+1 semana</button>
+        <button id="cRem30" class="btn btn-ghost btn-sm" type="button" style="margin-top:0">+30 días</button>
+        <button id="cRemClear" class="btn btn-ghost btn-sm" type="button" style="margin-top:0">✕ Quitar</button>
+      </div>
+    </div>
     <div class="field" id="cAttachField" style="display:none">
       <label for="cFile">📎 Adjuntar archivo (opcional) — se sube a Drive</label>
       <input id="cFile" type="file" />
@@ -1522,13 +1531,14 @@ function json(obj) {
   }
 
   // ---- Eventos correctivos -----------------------------------------------
-  const CORRECTIVO_TIPOS = ['Solicitud de trabajo', 'Envío a servicio técnico', 'Recepción', 'Reporte de servicio'];
+  const CORRECTIVO_TIPOS = ['Solicitud de trabajo', 'Envío a servicio técnico', 'Recepción', 'Reporte de servicio', 'Otro'];
   // Campos solicitados por cada tipo de evento correctivo (en orden)
   const CORRECTIVO_CAMPOS = {
     'Solicitud de trabajo': ['fecha', 'folioSolicitud', 'ejecutor', 'descripcion', 'estadoFinal'],
     'Envío a servicio técnico': ['fecha', 'folioSolicitud', 'nEnvio', 'ejecutor', 'empresa', 'estadoFinal'],
     'Recepción': ['fecha', 'folioGuia', 'empresa', 'estadoFinal'],
-    'Reporte de servicio': ['fecha', 'empresa', 'descripcion', 'estadoFinal']
+    'Reporte de servicio': ['fecha', 'empresa', 'descripcion', 'estadoFinal'],
+    'Otro': ['fecha', 'ejecutor', 'descripcion', 'estadoFinal']
   };
   const CORRECTIVO_LABELS = {
     fecha: 'Fecha', folioSolicitud: 'Folio de la solicitud', folioGuia: 'Folio de la guía de despacho',
@@ -3777,12 +3787,30 @@ function json(obj) {
     });
     $('#cSave').disabled = !ok;
   }
+  // URL para crear un recordatorio (evento de día completo) en Google Calendar.
+  function googleCalendarUrl(title, dateObj, details, location) {
+    if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) return '';
+    const p2 = n => ('0' + n).slice(-2);
+    const ymd = d => d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate());
+    const end = new Date(dateObj.getTime() + 86400000);   // día siguiente (todo el día)
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(title) +
+      '&dates=' + ymd(dateObj) + '/' + ymd(end) +
+      (details ? '&details=' + encodeURIComponent(details) : '') +
+      (location ? '&location=' + encodeURIComponent(location) : '');
+  }
+  // Enlace clicable "Agregar recordatorio a Google Calendar"
+  function recordatorioLink(title, dateObj, details, location) {
+    const url = googleCalendarUrl(title, dateObj, details, location);
+    return url ? ' <a href="' + esc(url) + '" target="_blank" rel="noopener"><b>📅 Agregar recordatorio a Google Calendar</b></a>' : '';
+  }
+
   function openCModal(eq) {
     state.cEq = eq;
     $('#cmodalEq').innerHTML = '<b>' + esc(eq.equipo) + '</b> (ID ' + esc(eq.id) + ') · Serie: <b>' +
       esc(eq.serie || '—') + '</b> · Inv: <b>' + esc(eq.inv || '—') + '</b>';
     $('#cTipo').value = '';
     $('#cFields').innerHTML = '';
+    $('#cRecordatorio').value = '';
     $('#cFile').value = ''; $('#cFileDesc').value = ''; $('#cAttachField').style.display = sheetsReady() ? 'block' : 'none';
     showInline($('#cmodalMsg'), '', '');
     $('#cSave').disabled = true;
@@ -3804,12 +3832,22 @@ function json(obj) {
     const corr = MP.buildCorrectivo(eq, data);
     const attFile = $('#cFile') ? $('#cFile').files[0] : null;
     const attDesc = $('#cFileDesc') ? $('#cFileDesc').value.trim() : '';
+    const remVal = $('#cRecordatorio') ? $('#cRecordatorio').value : '';   // capturar antes de cerrar
     state.correctivos.push(corr);
     saveCorrectivos();
     closeCModal();
     renderCorrectivos();
     if (state.selDetalleEq) renderDetalle(state.selDetalleEq);
-    setStatus('✅ Evento correctivo registrado: <b>' + esc(eq.equipo) + '</b> — ' + esc(tipo) + '.', 'ok');
+    let cmsg = '✅ Evento correctivo registrado: <b>' + esc(eq.equipo) + '</b> — ' + esc(tipo) + '.';
+    let ckind = 'ok';
+    if (remVal) {
+      const rp = remVal.split('-'); const rd = new Date(+rp[0], +rp[1] - 1, +rp[2]);
+      cmsg += recordatorioLink('MP 2026 · ' + (eq.equipo || 'Equipo') + ' — ' + tipo, rd,
+        'Recordatorio del evento correctivo "' + tipo + '" · Equipo ' + (eq.equipo || '') + ' (ID ' + eq.id + ', Serie ' + (eq.serie || '—') + ', Inv ' + (eq.inv || '—') + ').' + (data.descripcion ? '\n' + data.descripcion : ''),
+        eq.servicio || '');
+      ckind = 'info';   // con enlace: no auto-ocultar para dar tiempo a hacer clic
+    }
+    setStatus(cmsg, ckind);
     autoExportSheets();
     if (attFile) {
       const auto = tipo + (corr.fecha ? ' · ' + fmtDate(corr.fecha) : '') +
@@ -4023,7 +4061,11 @@ function json(obj) {
     closePModal();
     renderPendientes();
     if (state.selDetalleEq) renderDetalle(state.selDetalleEq);
-    setStatus('✅ Pendiente registrado: <b>' + esc(eq.equipo) + '</b>.', 'ok');
+    setStatus('✅ Pendiente registrado: <b>' + esc(eq.equipo) + '</b>.' +
+      recordatorioLink('MP 2026 · ' + (eq.equipo || 'Equipo') + ' — ' + pTipo, pend.fechaCompromiso,
+        'Pendiente "' + pTipo + '" · Equipo ' + (eq.equipo || '') + ' (ID ' + eq.id + ', Serie ' + (eq.serie || '—') + ', Inv ' + (eq.inv || '—') + ').' +
+        '\nResp. ejecución: ' + ($('#pRespEjec').value || '—') + '\n' + (pend.observacion || ''),
+        eq.servicio || ''), 'info');
     autoExportSheets();
     if (attFile) attachToEvent('pend', pend, attFile, 'Pendiente: ' + pTipo, attDesc || (pTipo + ' · ' + fmtDate(pend.fechaCompromiso)));
   }
@@ -4326,6 +4368,10 @@ function json(obj) {
   // Evento correctivo
   $('#cTipo').addEventListener('change', renderCFields);
   $('#cSave').addEventListener('click', saveCorrectivo);
+  // Recordatorio: atajos de fecha
+  $('#cRem7').addEventListener('click', () => { const t = new Date(); t.setDate(t.getDate() + 7); $('#cRecordatorio').value = isoDate(t); });
+  $('#cRem30').addEventListener('click', () => { const t = new Date(); t.setDate(t.getDate() + 30); $('#cRecordatorio').value = isoDate(t); });
+  $('#cRemClear').addEventListener('click', () => { $('#cRecordatorio').value = ''; });
   $('#cCancel').addEventListener('click', closeCModal);
   $('#cClose').addEventListener('click', closeCModal);
   $('#cmodal').addEventListener('click', e => { if (e.target === $('#cmodal')) closeCModal(); });
