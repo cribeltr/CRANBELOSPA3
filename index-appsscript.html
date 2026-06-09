@@ -613,7 +613,7 @@
   <div id="sheetsCard" class="card">
     <p class="section-title">☁️ Guardar en Google Sheets</p>
     <p class="muted" style="margin:0 0 12px">Crea/actualiza en tu Google Sheet las <b>mismas hojas del Excel</b> (Eventos, Catalogos y Resumen), vía Apps Script. Se configura <b>una sola vez</b>. (Este paso sí usa internet.)</p>
-    <div class="field">
+    <div class="field" id="sheetsUrlField">
       <label for="sheetsUrl">URL de la app web (Apps Script)</label>
       <input id="sheetsUrl" type="text" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" />
     </div>
@@ -4096,9 +4096,8 @@ function json(obj) {
   $('#sheetsUrl').value = sheetsUrl();
   $('#sheetsAuto').checked = sheetsAuto();
   if (GAS) {
-    // Servida desde Apps Script: conexión directa, sin URL.
-    $('#sheetsUrl').value = ''; $('#sheetsUrl').placeholder = 'Conectado a esta planilla (Apps Script) — no necesitas URL';
-    $('#sheetsUrl').disabled = true;
+    // Servida desde Apps Script: conexión directa, sin URL -> se oculta ese apartado.
+    const urlField = $('#sheetsUrlField'); if (urlField) urlField.style.display = 'none';
     $('#sheetsSave').style.display = 'none';
     showInline($('#sheetsStatus'), 'ok', '✓ Conectado a esta planilla (Apps Script). Usa “Enviar” y “Traer” directamente.');
   }
