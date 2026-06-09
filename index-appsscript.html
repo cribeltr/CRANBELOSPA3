@@ -700,15 +700,21 @@
       <div class="actions" style="margin-top:0"><button id="copyScript" class="btn btn-ghost btn-sm" type="button">📋 Copiar script</button></div>
       <p class="muted" style="margin:8px 0 0">⚠️ Si <b>Probar conexión</b> dice que el script está desactualizado, <b>no copies de aquí</b> (esta copia se sirve desde la misma versión publicada, así que también sería vieja): usa el archivo <code>Code.gs</code> que te entregaron y publica <b>Versión nueva</b>.</p>
       <pre id="gsScript" class="code">/****************************************************************************
- *  ===&gt;  VERSIÓN: v11-datos-normalizados  &lt;===  (debe coincidir con "Probar conexión")
+ *  ===&gt;  VERSIÓN: v12-maestro-detalle  &lt;===  (debe coincidir con "Probar conexión")
  *  Puente Google Sheets — Programación MP 2026
  *  --------------------------------------------------------------------------
- *  ESTRUCTURA DE LA PLANILLA (v11):
- *   · CAPA DE DATOS (fuente de verdad, se actualiza EN CADA guardado, hojas pequeñas):
- *       Equipos · RegistrosMP · Correctivos · Pendientes · Tareas · Bitacora · Archivos
- *       (cada fila lleva ID estable: RegID / CorrID / PendID + fecha de registro)
- *   · CAPA DE REPORTES (se regeneran con "Enviar / actualizar"):
- *       Eventos · Catalogos · Resumen   (formato del hospital, intacto)
+ *  ESTRUCTURA DE LA PLANILLA (v12, modelo maestro-detalle):
+ *   · "Equipos": MAESTRO del inventario (encabezados legibles; 2 columnas
+ *     técnicas al final para el round-trip de la programación).
+ *   · "Eventos": detalle delgado (1 fila por evento). Los descriptores del
+ *     equipo (inventario/nombre/familia/servicio) son FÓRMULAS que miran el
+ *     maestro: una sola fuente de verdad.
+ *   · CAPA DE DATOS (se actualiza EN CADA guardado, hojas pequeñas):
+ *       RegistrosMP · Correctivos · Pendientes · Tareas · Bitacora · Archivos
+ *       (ID estable RegID/CorrID/PendID + 'ID Equipo' + fecha de registro;
+ *       descriptores por fórmula desde el maestro).
+ *   · "Resumen": indicadores con FÓRMULAS VIVAS (se recalculan solos).
+ *   · "Léeme": descripción de la estructura, escrita automáticamente.
  *   · _meta (oculta): versión del esquema y último envío.
  *   · _datos (oculta, transición): snapshot JSON heredado. Se escribe SOLO si no
  *     supera el límite de 50.000 caracteres por celda; la fuente real son las hojas.
@@ -755,7 +761,7 @@ function appPush(body) {
   try { return writeAll(typeof body === 'string' ? JSON.parse(body) : body); }
   finally { lock.releaseLock(); }
 }
-var APP_VERSION = 'v11-datos-normalizados';   // para confirmar qué versión está publicada (Probar conexión)
+var APP_VERSION = 'v12-maestro-detalle';   // para confirmar qué versión está publicada (Probar conexión)
 function appPull() { return readAll(false); }   // sin equipos (evita el límite de tamaño de google.script.run)
 // Inventario completo: hoja "Equipos" (v11) o "_equipos" (heredada) o reconstruido desde Eventos.
 function allEquipos(ss) {
@@ -783,10 +789,11 @@ function equiposFromEventos(ss) {
   var MAP = { 'ID': 'id', 'Familia': 'familia', 'N° Carpeta': 'carpeta', 'N° Inventario': 'inv', 'Equipo': 'equipo', 'Servicio': 'servicio', 'Unidad': 'unidad', 'Ubicación': 'ubicacion', 'Procedencia': 'procedencia', 'Marca': 'marca', 'Modelo': 'modelo', 'N° Serie': 'serie', 'Año Instalación': 'anio', 'Vida Útil Residual': 'vur', 'Clasificación': 'clasif', 'ENU / Baja': 'enubaja', 'Observación': 'observacion', 'Frecuencia MP': 'frecuencia' };
   var KEYS = ['id', 'familia', 'carpeta', 'inv', 'equipo', 'servicio', 'unidad', 'ubicacion', 'procedencia', 'marca', 'modelo', 'serie', 'anio', 'vur', 'clasif', 'enubaja', 'observacion', 'frecuencia'];
   var get = function (row, hdr) { var i = idx[hdr]; return (i == null || row[i] == null) ? '' : String(row[i]); };
+  var idH = (idx['ID'] != null) ? 'ID' : 'ID Equipo';   // hoja completa (heredada) o delgada (v12)
   var mesI = idx['N° Mes'], progI = idx['Programa (P)'], resI = idx['Resultado (R)'];
   var byId = {}, order = [];
   for (var r = 1; r &lt; vals.length; r++) {
-    var row = vals[r]; var id = get(row, 'ID'); var eqn = get(row, 'Equipo');
+    var row = vals[r]; var id = get(row, idH); var eqn = get(row, 'Equipo');
     if (!id &amp;&amp; !eqn) continue;
     var key = id || eqn;
     if (!byId[key]) {
@@ -888,7 +895,7 @@ function uploadArchivo(p) {
   }
 
   // Registrar el enlace en la hoja "Archivos"
-  var HEADERS = ['ID', 'N° Inventario', 'N° Serie', 'Equipo', 'Servicio', 'Categoría', 'Descripción', 'Nombre del archivo', 'Enlace', 'Fecha de carga'];
+  var HEADERS = ['ID Equipo', 'N° Inventario', 'N° Serie', 'Equipo', 'Servicio', 'Categoría', 'Descripción', 'Nombre del archivo', 'Enlace', 'Fecha de carga'];
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName('Archivos');
   if (!sh) {
@@ -910,7 +917,7 @@ function uploadArchivo(p) {
   // Escribir en el ORDEN real del encabezado (el enlace como texto: Google Sheets
   // lo hace clicable y queda legible al volver a leer la hoja, round-trip).
   var valByHeader = {
-    'ID': p.equipoId || '', 'N° Inventario': p.inv || '', 'N° Serie': p.serie || '', 'Equipo': p.equipo || '',
+    'ID Equipo': p.equipoId || '', 'ID': p.equipoId || '', 'N° Inventario': p.inv || '', 'N° Serie': p.serie || '', 'Equipo': p.equipo || '',
     'Servicio': p.servicio || '', 'Categoría': p.categoria || '', 'Descripción': p.descripcion || '',
     'Nombre del archivo': nombre, 'Enlace': url, 'Fecha de carga': fecha
   };
@@ -932,34 +939,24 @@ function writeAll(body) {
     var written = [];
 
     (body.sheets || []).forEach(function (spec) {
-      var name = spec.name || 'Hoja';
-      var sh = ss.getSheetByName(name) || ss.insertSheet(name);
-
-      // Limpiar contenido, validaciones y formato condicional previos
-      sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).clearDataValidations();
-      sh.setConditionalFormatRules([]);
-      sh.clearContents();
-
-      var rows = spec.rows || [];
-      if (rows.length &gt; 0) {
-        var maxc = 1;
-        rows.forEach(function (r) { if (r.length &gt; maxc) maxc = r.length; });
-        rows.forEach(function (r) { while (r.length &lt; maxc) r.push(''); });
-        sh.getRange(1, 1, rows.length, maxc).setValues(rows);
-        sh.setFrozenRows(1);
-        applyValidations(sh, spec.validations);
-        applyColors(sh, spec.colors);
-      }
-      written.push(name);
+      writeSheetSpec_(ss, spec.name || 'Hoja', spec);
+      written.push(spec.name || 'Hoja');
     });
 
-    // Hojas de DATOS normalizadas (v11): fuente de verdad, pequeñas, como texto.
+    // Hojas de DATOS normalizadas: fuente de verdad, pequeñas, como texto.
     if (body.datos) {
       for (var dn in body.datos) {
         var dspec = body.datos[dn] || {};
-        writeDataSheet_(ss, dn, dspec.rows || [], dspec.validations, dspec.colors);
+        dspec.asText = true;
+        writeSheetSpec_(ss, dn, dspec);
         written.push(dn);
       }
+    }
+
+    // En el envío completo, el servidor escribe el Resumen (fórmulas vivas) y la hoja Léeme.
+    if (body.sheets &amp;&amp; body.sheets.length) {
+      try { escribirResumenVivo_(ss); written.push('Resumen'); } catch (e5) {}
+      try { escribirLeeme_(ss); } catch (e6) {}
     }
 
     // Snapshot heredado (_datos): SOLO si no supera el límite de 50.000 caracteres
@@ -992,23 +989,110 @@ function writeAll(body) {
     return { ok: true, sheets: written };
 }
 
-// Hoja de datos: todo como TEXTO (conserva ceros, fechas ISO legibles) + encabezado fijo.
-function writeDataSheet_(ss, name, rows, validations, colors) {
+// Escritura unificada de una hoja: filas + (opcional) texto plano, columnas con
+// FÓRMULAS (plantilla con {r} = n° de fila), desplegables y colores.
+// spec: { rows, asText, formulaCols: {encabezado: plantilla}, validations, colors }
+function writeSheetSpec_(ss, name, spec) {
   var sh = ss.getSheetByName(name) || ss.insertSheet(name);
   sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).clearDataValidations();
   sh.setConditionalFormatRules([]);
   sh.clearContents();
-  if (!rows || !rows.length) return;
+  var rows = spec.rows || [];
+  if (!rows.length) return;
   var maxc = 1;
   rows.forEach(function (r) { if (r.length &gt; maxc) maxc = r.length; });
   rows.forEach(function (r) { while (r.length &lt; maxc) r.push(''); });
   var rng = sh.getRange(1, 1, rows.length, maxc);
-  rng.setNumberFormat('@');
+  if (spec.asText) rng.setNumberFormat('@');   // conserva ceros a la izquierda y fechas ISO
   rng.setValues(rows);
   sh.setFrozenRows(1);
-  sh.getRange(1, 1, 1, maxc).setFontWeight('bold').setBackground('#15616d').setFontColor('#ffffff');
-  if (validations) applyValidations(sh, validations);
-  if (colors) applyColors(sh, colors);
+  if (spec.asText) sh.getRange(1, 1, 1, maxc).setFontWeight('bold').setBackground('#15616d').setFontColor('#ffffff');
+  // Columnas con fórmula (descriptores que miran el maestro "Equipos")
+  if (spec.formulaCols &amp;&amp; rows.length &gt; 1) {
+    var hdr = rows[0].map(String);
+    for (var fh in spec.formulaCols) {
+      var ci = hdr.indexOf(fh);
+      if (ci === -1) continue;
+      var tpl = spec.formulaCols[fh];
+      var col = sh.getRange(2, ci + 1, rows.length - 1, 1);
+      col.setNumberFormat('General');   // una columna con '@' no evalúa fórmulas
+      var formulas = [];
+      for (var r = 2; r &lt;= rows.length; r++) formulas.push([tpl.replace(/\{r\}/g, String(r))]);
+      col.setFormulas(formulas);
+    }
+  }
+  if (spec.validations) applyValidations(sh, spec.validations);
+  if (spec.colors) applyColors(sh, spec.colors);
+}
+
+// Resumen con FÓRMULAS VIVAS sobre Eventos/Equipos/Pendientes (se recalcula solo).
+// Columnas de la hoja Eventos (delgada): F=Tipo de Registro · H=N° Mes · I=Programa · L=Estado.
+function escribirResumenVivo_(ss) {
+  var sh = ss.getSheetByName('Resumen') || ss.insertSheet('Resumen');
+  sh.clearContents(); sh.setConditionalFormatRules([]);
+  var MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  sh.getRange(1, 1).setValue('Resumen — Programación MP 2026 (indicadores con fórmulas: se actualizan solos)').setFontWeight('bold').setFontSize(12);
+  var kv = [
+    ['Equipos en maestro', '=MAX(0,COUNTA(Equipos!A:A)-1)'],
+    ['Eventos totales', '=MAX(0,COUNTA(Eventos!A:A)-1)'],
+    ['Eventos preventivos', '=COUNTIF(Eventos!F:F,"Preventivo")'],
+    ['Eventos correctivos', '=COUNTIF(Eventos!F:F,"Correctivo")'],
+    ['MP realizadas', '=COUNTIF(Eventos!L:L,"Realizada*")'],
+    ['MP reprogramadas', '=COUNTIF(Eventos!L:L,"Reprogramada")'],
+    ['MP pendientes', '=COUNTIF(Eventos!L:L,"Pendiente*")'],
+    ['Pendientes de gestión abiertos', '=COUNTIF(Pendientes!M:M,"Abierto")+COUNTIF(Pendientes!M:M,"En progreso")']
+  ];
+  for (var i = 0; i &lt; kv.length; i++) {
+    sh.getRange(3 + i, 1).setValue(kv[i][0]);
+    sh.getRange(3 + i, 2).setFormula(kv[i][1]);
+  }
+  var base = 3 + kv.length + 1;
+  var head = ['Mes', 'Programadas', 'Realizadas', 'Reprogramadas', 'Pendientes'];
+  sh.getRange(base, 1, 1, head.length).setValues([head]).setFontWeight('bold').setBackground('#15616d').setFontColor('#ffffff');
+  for (var m = 1; m &lt;= 12; m++) {
+    var r = base + m;
+    sh.getRange(r, 1).setValue(MESES[m - 1]);
+    sh.getRange(r, 2).setFormula('=COUNTIFS(Eventos!$H:$H,"' + m + '",Eventos!$I:$I,"?*")');
+    sh.getRange(r, 3).setFormula('=COUNTIFS(Eventos!$H:$H,"' + m + '",Eventos!$L:$L,"Realizada*")');
+    sh.getRange(r, 4).setFormula('=COUNTIFS(Eventos!$H:$H,"' + m + '",Eventos!$L:$L,"Reprogramada")');
+    sh.getRange(r, 5).setFormula('=COUNTIFS(Eventos!$H:$H,"' + m + '",Eventos!$L:$L,"Pendiente*")');
+  }
+  var tot = base + 13;
+  sh.getRange(tot, 1).setValue('Total').setFontWeight('bold');
+  for (var c = 2; c &lt;= 5; c++) {
+    var L = columnToLetter(c);
+    sh.getRange(tot, c).setFormula('=SUM(' + L + (base + 1) + ':' + L + (base + 12) + ')').setFontWeight('bold');
+  }
+  sh.getRange(1, 1, 1, 1).setWrap(false);
+  sh.setColumnWidth(1, 230);
+}
+
+// Hoja "Léeme": describe la estructura para cualquier persona que abra la planilla.
+function escribirLeeme_(ss) {
+  var sh = ss.getSheetByName('Léeme') || ss.insertSheet('Léeme', 0);
+  sh.clearContents();
+  var ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Santiago', 'yyyy-MM-dd HH:mm');
+  var lineas = [
+    ['Plan de Mantenciones Preventivas 2026 — Estructura de la planilla (' + APP_VERSION + ')'],
+    [''],
+    ['Esta planilla la escribe la aplicación "Gestión MP 2026". Última actualización: ' + ahora],
+    [''],
+    ['HOJAS:'],
+    ['· Equipos — MAESTRO del inventario (una fila por equipo). Es la única fuente de los datos del equipo.'],
+    ['· Eventos — una fila por evento (preventivo o correctivo). Las columnas N° Inventario/Equipo/Familia/Servicio son FÓRMULAS que miran el maestro.'],
+    ['· RegistrosMP / Correctivos / Pendientes / Tareas / Bitacora — lo registrado en la app, con ID estable (RegID/CorrID/PendID) y fecha de registro.'],
+    ['· Archivos — enlaces a los documentos subidos a Drive.'],
+    ['· Resumen — indicadores con fórmulas vivas (se actualizan solos).'],
+    ['· Catalogos — listas de ejecutores y códigos.'],
+    [''],
+    ['REGLAS:'],
+    ['· NO editar las columnas con fórmulas (descriptores del equipo): se corrigen en el maestro "Equipos".'],
+    ['· Lo ideal es registrar desde la aplicación; la app reescribe estas hojas en cada guardado.'],
+    ['· Respaldo automático semanal en Drive: carpeta "' + ARCHIVOS_ROOT + '/Respaldos".']
+  ];
+  sh.getRange(1, 1, lineas.length, 1).setValues(lineas);
+  sh.getRange(1, 1).setFontWeight('bold').setFontSize(12);
+  sh.setColumnWidth(1, 900);
 }
 
 // _meta: versión del esquema y trazas del último envío (hoja oculta clave/valor).
@@ -2527,39 +2611,49 @@ function json(obj) {
     state.pendientes.forEach(p => { if (!p.pendId) p.pendId = uid('P'); });
   }
 
-  // ---- Hojas de DATOS normalizadas (fuente de verdad en la planilla) ------
+  // ---- Hojas de DATOS normalizadas (esquema v12: maestro Equipos + detalle) ---
+  // Los descriptores del equipo (inventario/serie/nombre/servicio/unidad) se
+  // escriben como FÓRMULAS que miran el maestro "Equipos": una sola fuente de
+  // verdad, y los cambios del maestro se reflejan en todas las hojas.
   const sd = d => (d instanceof Date) ? isoDate(d) : (d || '');
+  // Columnas del maestro Equipos: A=ID, B=N° Carpeta, C=N° Inventario, D=Equipo,
+  // E=Familia, F=Servicio, G=Unidad, H=Ubicación, ... L=N° Serie.
+  function fEq(refCell, col) {
+    return '=IF($' + refCell + '{r}="","",IFERROR(INDEX(Equipos!$' + col + ':$' + col + ',MATCH($' + refCell + '{r},Equipos!$A:$A,0)),""))';
+  }
   function registrosToRows() {
-    const rows = [['RegID', 'ID', 'N° Inventario', 'N° Serie', 'Equipo', 'Mes', 'N° Mes', 'Fecha de Ejecución', 'Programa (P)', 'Resultado (R)', 'Causal', 'Ejecutor', 'Estado Final del Equipo', 'Observación', 'Adjunto', 'Nombre Adjunto', 'Registrado El', 'Actualizado El']];
+    const rows = [['RegID', 'ID Equipo', 'N° Inventario', 'N° Serie', 'Equipo', 'Mes', 'N° Mes', 'Fecha de Ejecución', 'Programa (P)', 'Resultado (R)', 'Causal', 'Ejecutor', 'Estado Final del Equipo', 'Observación', 'Adjunto', 'Nombre Adjunto', 'Registrado El', 'Actualizado El']];
     state.registros.forEach(r => rows.push([r.regId || '', r.id || '', r.inv || '', r.serie || '', r.equipo || '', r.mes || '', String(r.nMes || ''), sd(r.fechaEjecucion), r.programa || '', r.resultado || '', r.causal || '', r.ejecutor || '', r.estadoFinal || '', r.observacion || '', r.archivoUrl || '', r.archivoNombre || '', r.registradoEl || '', r.actualizadoEl || '']));
     return rows;
   }
   function correctivosToRows() {
-    const rows = [['CorrID', 'ID', 'N° Inventario', 'N° Serie', 'Equipo', 'Servicio', 'Unidad', 'Tipo de Evento', 'Fecha', 'Folio Solicitud', 'N° Envío', 'Folio Guía Despacho', 'Empresa', 'Ejecutor', 'Descripción', 'Estado Final del Equipo', 'Adjunto', 'Nombre Adjunto', 'Registrado El']];
+    const rows = [['CorrID', 'ID Equipo', 'N° Inventario', 'N° Serie', 'Equipo', 'Servicio', 'Unidad', 'Tipo de Evento', 'Fecha', 'Folio Solicitud', 'N° Envío', 'Folio Guía Despacho', 'Empresa', 'Ejecutor', 'Descripción', 'Estado Final del Equipo', 'Adjunto', 'Nombre Adjunto', 'Registrado El']];
     state.correctivos.forEach(c => rows.push([c.corrId || '', c.id || '', c.inv || '', c.serie || '', c.equipo || '', c.servicio || '', c.unidad || '', c.tipoEvento || '', sd(c.fecha), c.folioSolicitud || '', c.nEnvio || '', c.folioGuia || '', c.empresa || '', c.ejecutor || '', c.descripcion || '', c.estadoFinal || '', c.archivoUrl || '', c.archivoNombre || '', c.registradoEl || '']));
     return rows;
   }
   function pendientesToRows() {
-    const rows = [['PendID', 'ID', 'N° Inventario', 'N° Serie', 'Equipo', 'Servicio', 'Unidad', 'Tipo', 'Fecha de Compromiso', 'Responsable Administrativo', 'Responsable de Ejecución', 'Observación', 'Estado', 'Adjunto', 'Nombre Adjunto', 'Registrado El', 'Resuelto El']];
-    state.pendientes.forEach(p => rows.push([p.pendId || '', p.id || '', p.inv || '', p.serie || '', p.equipo || '', p.servicio || '', p.unidad || '', p.tipo || '', sd(p.fechaCompromiso), p.respAdministrativo || '', p.respEjecucion || '', p.observacion || '', p.estado || 'Abierto', p.archivoUrl || '', p.archivoNombre || '', p.registradoEl || '', p.resueltoEl || '']));
+    const rows = [['PendID', 'ID Equipo', 'N° Inventario', 'N° Serie', 'Equipo', 'Servicio', 'Unidad', 'Tipo', 'Fecha de Compromiso', 'Responsable Administrativo', 'Responsable de Ejecución', 'Observación', 'Estado', 'Tareas (hechas/total)', 'Última actualización', 'Cuadrante (Eisenhower)', 'Urgencia', 'Importancia', 'Adjunto', 'Nombre Adjunto', 'Registrado El', 'Resuelto El']];
+    decoratedPendientes().forEach(p => rows.push([p.pendId || '', p.id || '', p.inv || '', p.serie || '', p.equipo || '', p.servicio || '', p.unidad || '', p.tipo || '', sd(p.fechaCompromiso), p.respAdministrativo || '', p.respEjecucion || '', p.observacion || '', p.estado || 'Abierto', p.tareasResumen || '', p.ultimaAct || '', p.cuadrante || '', p.urgencia || '', p.importancia || '', p.archivoUrl || '', p.archivoNombre || '', p.registradoEl || '', p.resueltoEl || '']));
     return rows;
   }
   function tareasToRows() {
-    const rows = [['PendID', 'ID', 'Tarea', 'Hecha']];
-    state.pendientes.forEach(p => (p.tareas || []).forEach(t => rows.push([p.pendId || '', p.id || '', t.texto || '', t.hecha ? 'Sí' : 'No'])));
+    const rows = [['PendID', 'ID Equipo', 'Equipo', 'Tarea', 'Hecha', 'Estado del Pendiente', 'Fecha de Compromiso']];
+    state.pendientes.forEach(p => (p.tareas || []).forEach(t => rows.push([p.pendId || '', p.id || '', p.equipo || '', t.texto || '', t.hecha ? 'Sí' : 'No', p.estado || 'Abierto', sd(p.fechaCompromiso)])));
     return rows;
   }
   function bitacoraToRows() {
-    const rows = [['PendID', 'ID', 'Fecha', 'Texto']];
-    state.pendientes.forEach(p => (p.actualizaciones || []).forEach(a => rows.push([p.pendId || '', p.id || '', sd(a.fecha), a.texto || ''])));
+    const rows = [['PendID', 'ID Equipo', 'Equipo', 'Fecha', 'Texto', 'Estado del Pendiente']];
+    state.pendientes.forEach(p => (p.actualizaciones || []).forEach(a => rows.push([p.pendId || '', p.id || '', p.equipo || '', sd(a.fecha), a.texto || '', p.estado || 'Abierto'])));
     return rows;
   }
   // Paquete de datos: pequeño, viaja EN CADA guardado (no reescribe los reportes).
   function buildDatosPayload() {
     ensureIds();
+    const descB = { 'N° Inventario': fEq('B', 'C'), 'N° Serie': fEq('B', 'L'), 'Equipo': fEq('B', 'D') };
     return {
       RegistrosMP: {
         rows: registrosToRows(),
+        formulaCols: descB,
         validations: [
           { header: 'Resultado (R)', values: MP.RESULTADO_OPCIONES },
           { header: 'Ejecutor', values: MP.EJECUTORES },
@@ -2569,38 +2663,69 @@ function json(obj) {
           { value: 'Operativo', color: '#C6EFCE' }, { value: 'No operativo', color: '#FFC7CE' }, { value: 'En servicio técnico', color: '#FFE0B2' }
         ] }]
       },
-      Correctivos: { rows: correctivosToRows(), validations: correctivosExtras().validations, colors: correctivosExtras().colors },
-      Pendientes: { rows: pendientesToRows(), validations: pendientesExtras().validations, colors: pendientesExtras().colors },
-      Tareas: { rows: tareasToRows() },
-      Bitacora: { rows: bitacoraToRows() }
+      Correctivos: { rows: correctivosToRows(), formulaCols: Object.assign({}, descB, { 'Servicio': fEq('B', 'F'), 'Unidad': fEq('B', 'G') }), validations: correctivosExtras().validations, colors: correctivosExtras().colors },
+      Pendientes: { rows: pendientesToRows(), formulaCols: Object.assign({}, descB, { 'Servicio': fEq('B', 'F'), 'Unidad': fEq('B', 'G') }), validations: pendientesExtras().validations, colors: pendientesExtras().colors },
+      Tareas: { rows: tareasToRows(), formulaCols: { 'Equipo': fEq('B', 'D') } },
+      Bitacora: { rows: bitacoraToRows(), formulaCols: { 'Equipo': fEq('B', 'D') } }
     };
   }
 
-  // Envío COMPLETO ("Enviar / actualizar"): regenera los REPORTES (Eventos/
-  // Catalogos/Resumen) + inventario + hojas de datos. Las hojas Correctivos/
-  // Pendientes/Tareas/Bitacora de la planilla son las de DATOS (con IDs).
+  // Hoja "Eventos" delgada (idea del libro reestructurado): una fila por evento,
+  // descriptores del equipo por fórmula desde el maestro. El Excel descargable
+  // mantiene el formato completo del hospital; esta es la vista de la planilla.
+  function eventosSlimRows() {
+    const rows = [['ID Equipo', 'N° Inventario', 'Equipo', 'Familia', 'Servicio', 'Tipo de Registro', 'Mes', 'N° Mes', 'Programa (P)', 'Resultado (R)', 'Causal', 'Estado', 'Fecha de Ejecución', 'Estado Final del Equipo', 'Ejecutor', 'Adjunto']];
+    consolidatedEvents().forEach(e => rows.push([
+      e.id || '', e.inv || '', e.equipo || '', e.familia || '', e.servicio || '',
+      'Preventivo', e.mes || '', String(e.nMes || ''), e.programa || '', e.resultado || '',
+      e.causal || '', e.estado || '', sd(e.fechaEjecucion), e.estadoFinal || '', e.ejecutor || '', e.archivoUrl || ''
+    ]));
+    state.correctivos.forEach(c => {
+      const f = (c.fecha instanceof Date) ? c.fecha : null;
+      rows.push([
+        c.id || '', c.inv || '', c.equipo || '', '', c.servicio || '',
+        'Correctivo', f ? MP.MONTHS_FULL[f.getMonth()] : '', f ? String(f.getMonth() + 1) : '', '', '',
+        '', 'Correctivo', sd(c.fecha), c.estadoFinal || '', c.ejecutor || '', c.archivoUrl || ''
+      ]);
+    });
+    return rows;
+  }
+
+  // Envío COMPLETO ("Enviar / actualizar"): maestro Equipos + Eventos delgada +
+  // Catalogos + hojas de datos. El Resumen (con fórmulas vivas) y la hoja Léeme
+  // los escribe el propio Apps Script.
   function buildSheetsPayload() {
     const wb = MPOUT.buildOutputWorkbook(ExcelJS, MP, consolidatedEvents(), { equipos: state.equipos.length, correctivos: state.correctivos, pendientes: decoratedPendientes(), archivos: state.archivos });
-    const REPORTES = ['Eventos', 'Catalogos', 'Resumen'];
+    const cat = wb.worksheets.filter(ws => ws.name === 'Catalogos').map(ws => ({ name: ws.name, rows: sheetToRows(ws) }));
+    const ev = {
+      name: 'Eventos', rows: eventosSlimRows(), asText: true,
+      formulaCols: { 'N° Inventario': fEq('A', 'C'), 'Equipo': fEq('A', 'D'), 'Familia': fEq('A', 'E'), 'Servicio': fEq('A', 'F') }
+    };
+    Object.assign(ev, eventosExtras());
     return {
-      sheets: wb.worksheets.filter(ws => REPORTES.indexOf(ws.name) !== -1).map(ws => {
-        const o = { name: ws.name, rows: sheetToRows(ws) };
-        if (ws.name === 'Eventos') Object.assign(o, eventosExtras());
-        return o;
-      }),
+      sheets: [ev].concat(cat),
       datos: buildDatosPayload(),
       data: serializeState(),   // snapshot heredado (el servidor lo omite si supera el límite de la celda)
-      equipos: state.equipos.length ? equiposToRows() : null   // inventario, para auto-cargar al abrir
+      equipos: state.equipos.length ? equiposToRows() : null   // maestro, para auto-cargar al abrir
     };
   }
 
-  // ---- Inventario de equipos: ida y vuelta con Google Sheets (_equipos) ---
-  // Permite que al abrir el link se restaure el inventario sin volver a subir el Excel.
+  // ---- Maestro de equipos: ida y vuelta con Google Sheets ------------------
+  // Hoja "Equipos" con encabezados legibles (orden del libro reestructurado) +
+  // 2 columnas técnicas compactas para el round-trip de la programación.
   const EQ_COLS = ['id', 'familia', 'carpeta', 'inv', 'equipo', 'servicio', 'unidad', 'ubicacion', 'procedencia', 'marca', 'modelo', 'serie', 'anio', 'vur', 'clasif', 'enubaja', 'observacion', 'frecuencia'];
+  // Orden visible del maestro (A..R) + técnicas (S,T)
+  const EQ_HDRS = [
+    ['ID', 'id'], ['N° Carpeta', 'carpeta'], ['N° Inventario', 'inv'], ['Equipo', 'equipo'],
+    ['Familia', 'familia'], ['Servicio', 'servicio'], ['Unidad', 'unidad'], ['Ubicación', 'ubicacion'],
+    ['Procedencia', 'procedencia'], ['Marca', 'marca'], ['Modelo', 'modelo'], ['N° Serie', 'serie'],
+    ['Año Instalación', 'anio'], ['Vida Útil Residual', 'vur'], ['Clasificación', 'clasif'],
+    ['ENU / Baja', 'enubaja'], ['Frecuencia MP', 'frecuencia'], ['Observación', 'observacion']
+  ];
   function equiposToRows() {
-    const rows = [EQ_COLS.concat(['prog', 'res'])];
+    const rows = [EQ_HDRS.map(h => h[0]).concat(['Programación (Ene→Dic)', 'Resultados (Ene→Dic)'])];
     state.equipos.forEach(eq => {
-      const r = EQ_COLS.map(k => eq[k] == null ? '' : String(eq[k]));
+      const r = EQ_HDRS.map(h => eq[h[1]] == null ? '' : String(eq[h[1]]));
       r.push((eq.prog || []).join('|')); r.push((eq.res || []).join('|'));
       rows.push(r);
     });
@@ -2610,7 +2735,12 @@ function json(obj) {
     if (!grid || grid.length < 2) return [];
     const h = grid[0].map(x => String(x == null ? '' : x).trim());
     const idx = {}; h.forEach((k, i) => idx[k] = i);
-    const get = (r, k) => { const i = idx[k]; const v = (i == null ? '' : r[i]); return v == null ? '' : String(v).trim(); };
+    // Acepta encabezados legibles (v12) y claves heredadas (_equipos antiguo)
+    const ALIAS = {};
+    EQ_HDRS.forEach(p => { ALIAS[p[1]] = [p[0], p[1]]; });
+    ALIAS.prog = ['Programación (Ene→Dic)', 'prog']; ALIAS.res = ['Resultados (Ene→Dic)', 'res'];
+    const colOf = k => { const names = ALIAS[k] || [k]; for (const n of names) { if (idx[n] != null) return idx[n]; } return null; };
+    const get = (r, k) => { const i = colOf(k); const v = (i == null ? '' : r[i]); return v == null ? '' : String(v).trim(); };
     const split12 = s => { let a = (s == null ? '' : String(s)).split('|'); if (a.length === 1 && a[0] === '') a = []; while (a.length < 12) a.push(''); return a; };
     return grid.slice(1).map(r => {
       const eq = {}; EQ_COLS.forEach(k => eq[k] = get(r, k));
@@ -2714,7 +2844,7 @@ function json(obj) {
   // Archivos (enlaces a Drive) leídos de la hoja "Archivos"
   function archivosFromTabla(grid) {
     return rowsToObjs(grid).map(o => ({
-      id: sid(o['ID']), inv: sid(o['N° Inventario']), serie: sid(o['N° Serie']),
+      id: sid(o['ID Equipo'] != null ? o['ID Equipo'] : o['ID']), inv: sid(o['N° Inventario']), serie: sid(o['N° Serie']),
       equipo: o['Equipo'] || '', servicio: o['Servicio'] || '', categoria: o['Categoría'] || '',
       descripcion: o['Descripción'] || '',
       nombre: o['Nombre del archivo'] || '', enlace: o['Enlace'] || '', fecha: o['Fecha de carga'] || ''
@@ -2867,11 +2997,13 @@ function json(obj) {
     const g = tablas && tablas.RegistrosMP;
     return Array.isArray(g) && g.length >= 1 && String((g[0] || [])[0]).trim() === 'RegID';
   }
+  // 'ID Equipo' (v12) o 'ID' (heredado)
+  function idEquipoDe(o) { return sid(o['ID Equipo'] != null ? o['ID Equipo'] : o['ID']); }
   function registrosFromTabla(grid) {
     const out = [];
     rowsToObjs(grid).forEach(o => {
       const regId = sid(o['RegID']); if (!regId) return;
-      const id = sid(o['ID']);
+      const id = idEquipoDe(o);
       const nMes = parseInt(sid(o['N° Mes']), 10);
       const mi = (nMes >= 1 && nMes <= 12) ? nMes - 1 : 0;
       let eq = state.equipos.find(q => String(q.id) === id);
@@ -2896,7 +3028,7 @@ function json(obj) {
   function correctivosFromTablaV2(grid) {
     return rowsToObjs(grid).map(o => ({
       corrId: sid(o['CorrID']) || uid('C'),
-      id: sid(o['ID']), inv: sid(o['N° Inventario']), serie: sid(o['N° Serie']), equipo: o['Equipo'] || '',
+      id: idEquipoDe(o), inv: sid(o['N° Inventario']), serie: sid(o['N° Serie']), equipo: o['Equipo'] || '',
       servicio: o['Servicio'] || '', unidad: o['Unidad'] || '', tipoEvento: o['Tipo de Evento'] || '', fecha: asDate(o['Fecha']),
       folioSolicitud: sid(o['Folio Solicitud']), nEnvio: sid(o['N° Envío']), folioGuia: sid(o['Folio Guía Despacho']),
       empresa: o['Empresa'] || '', ejecutor: o['Ejecutor'] || '', descripcion: o['Descripción'] || '', estadoFinal: o['Estado Final del Equipo'] || '',
@@ -2907,7 +3039,7 @@ function json(obj) {
   function pendientesFromTablaV2(tablas) {
     const pend = rowsToObjs(tablas.Pendientes).map(o => ({
       pendId: sid(o['PendID']) || uid('P'),
-      id: sid(o['ID']), inv: sid(o['N° Inventario']), serie: sid(o['N° Serie']), equipo: o['Equipo'] || '',
+      id: idEquipoDe(o), inv: sid(o['N° Inventario']), serie: sid(o['N° Serie']), equipo: o['Equipo'] || '',
       servicio: o['Servicio'] || '', unidad: o['Unidad'] || '', tipo: o['Tipo'] || '', fechaCompromiso: asDate(o['Fecha de Compromiso']),
       respAdministrativo: o['Responsable Administrativo'] || '', respEjecucion: o['Responsable de Ejecución'] || '',
       observacion: o['Observación'] || '', estado: o['Estado'] || 'Abierto',

@@ -1,13 +1,19 @@
 /****************************************************************************
- *  ===>  VERSIÓN: v11-datos-normalizados  <===  (debe coincidir con "Probar conexión")
+ *  ===>  VERSIÓN: v12-maestro-detalle  <===  (debe coincidir con "Probar conexión")
  *  Puente Google Sheets — Programación MP 2026
  *  --------------------------------------------------------------------------
- *  ESTRUCTURA DE LA PLANILLA (v11):
- *   · CAPA DE DATOS (fuente de verdad, se actualiza EN CADA guardado, hojas pequeñas):
- *       Equipos · RegistrosMP · Correctivos · Pendientes · Tareas · Bitacora · Archivos
- *       (cada fila lleva ID estable: RegID / CorrID / PendID + fecha de registro)
- *   · CAPA DE REPORTES (se regeneran con "Enviar / actualizar"):
- *       Eventos · Catalogos · Resumen   (formato del hospital, intacto)
+ *  ESTRUCTURA DE LA PLANILLA (v12, modelo maestro-detalle):
+ *   · "Equipos": MAESTRO del inventario (encabezados legibles; 2 columnas
+ *     técnicas al final para el round-trip de la programación).
+ *   · "Eventos": detalle delgado (1 fila por evento). Los descriptores del
+ *     equipo (inventario/nombre/familia/servicio) son FÓRMULAS que miran el
+ *     maestro: una sola fuente de verdad.
+ *   · CAPA DE DATOS (se actualiza EN CADA guardado, hojas pequeñas):
+ *       RegistrosMP · Correctivos · Pendientes · Tareas · Bitacora · Archivos
+ *       (ID estable RegID/CorrID/PendID + 'ID Equipo' + fecha de registro;
+ *       descriptores por fórmula desde el maestro).
+ *   · "Resumen": indicadores con FÓRMULAS VIVAS (se recalculan solos).
+ *   · "Léeme": descripción de la estructura, escrita automáticamente.
  *   · _meta (oculta): versión del esquema y último envío.
  *   · _datos (oculta, transición): snapshot JSON heredado. Se escribe SOLO si no
  *     supera el límite de 50.000 caracteres por celda; la fuente real son las hojas.
@@ -54,7 +60,7 @@ function appPush(body) {
   try { return writeAll(typeof body === 'string' ? JSON.parse(body) : body); }
   finally { lock.releaseLock(); }
 }
-var APP_VERSION = 'v11-datos-normalizados';   // para confirmar qué versión está publicada (Probar conexión)
+var APP_VERSION = 'v12-maestro-detalle';   // para confirmar qué versión está publicada (Probar conexión)
 function appPull() { return readAll(false); }   // sin equipos (evita el límite de tamaño de google.script.run)
 // Inventario completo: hoja "Equipos" (v11) o "_equipos" (heredada) o reconstruido desde Eventos.
 function allEquipos(ss) {
@@ -82,10 +88,11 @@ function equiposFromEventos(ss) {
   var MAP = { 'ID': 'id', 'Familia': 'familia', 'N° Carpeta': 'carpeta', 'N° Inventario': 'inv', 'Equipo': 'equipo', 'Servicio': 'servicio', 'Unidad': 'unidad', 'Ubicación': 'ubicacion', 'Procedencia': 'procedencia', 'Marca': 'marca', 'Modelo': 'modelo', 'N° Serie': 'serie', 'Año Instalación': 'anio', 'Vida Útil Residual': 'vur', 'Clasificación': 'clasif', 'ENU / Baja': 'enubaja', 'Observación': 'observacion', 'Frecuencia MP': 'frecuencia' };
   var KEYS = ['id', 'familia', 'carpeta', 'inv', 'equipo', 'servicio', 'unidad', 'ubicacion', 'procedencia', 'marca', 'modelo', 'serie', 'anio', 'vur', 'clasif', 'enubaja', 'observacion', 'frecuencia'];
   var get = function (row, hdr) { var i = idx[hdr]; return (i == null || row[i] == null) ? '' : String(row[i]); };
+  var idH = (idx['ID'] != null) ? 'ID' : 'ID Equipo';   // hoja completa (heredada) o delgada (v12)
   var mesI = idx['N° Mes'], progI = idx['Programa (P)'], resI = idx['Resultado (R)'];
   var byId = {}, order = [];
   for (var r = 1; r < vals.length; r++) {
-    var row = vals[r]; var id = get(row, 'ID'); var eqn = get(row, 'Equipo');
+    var row = vals[r]; var id = get(row, idH); var eqn = get(row, 'Equipo');
     if (!id && !eqn) continue;
     var key = id || eqn;
     if (!byId[key]) {
@@ -187,7 +194,7 @@ function uploadArchivo(p) {
   }
 
   // Registrar el enlace en la hoja "Archivos"
-  var HEADERS = ['ID', 'N° Inventario', 'N° Serie', 'Equipo', 'Servicio', 'Categoría', 'Descripción', 'Nombre del archivo', 'Enlace', 'Fecha de carga'];
+  var HEADERS = ['ID Equipo', 'N° Inventario', 'N° Serie', 'Equipo', 'Servicio', 'Categoría', 'Descripción', 'Nombre del archivo', 'Enlace', 'Fecha de carga'];
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName('Archivos');
   if (!sh) {
@@ -209,7 +216,7 @@ function uploadArchivo(p) {
   // Escribir en el ORDEN real del encabezado (el enlace como texto: Google Sheets
   // lo hace clicable y queda legible al volver a leer la hoja, round-trip).
   var valByHeader = {
-    'ID': p.equipoId || '', 'N° Inventario': p.inv || '', 'N° Serie': p.serie || '', 'Equipo': p.equipo || '',
+    'ID Equipo': p.equipoId || '', 'ID': p.equipoId || '', 'N° Inventario': p.inv || '', 'N° Serie': p.serie || '', 'Equipo': p.equipo || '',
     'Servicio': p.servicio || '', 'Categoría': p.categoria || '', 'Descripción': p.descripcion || '',
     'Nombre del archivo': nombre, 'Enlace': url, 'Fecha de carga': fecha
   };
@@ -231,34 +238,24 @@ function writeAll(body) {
     var written = [];
 
     (body.sheets || []).forEach(function (spec) {
-      var name = spec.name || 'Hoja';
-      var sh = ss.getSheetByName(name) || ss.insertSheet(name);
-
-      // Limpiar contenido, validaciones y formato condicional previos
-      sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).clearDataValidations();
-      sh.setConditionalFormatRules([]);
-      sh.clearContents();
-
-      var rows = spec.rows || [];
-      if (rows.length > 0) {
-        var maxc = 1;
-        rows.forEach(function (r) { if (r.length > maxc) maxc = r.length; });
-        rows.forEach(function (r) { while (r.length < maxc) r.push(''); });
-        sh.getRange(1, 1, rows.length, maxc).setValues(rows);
-        sh.setFrozenRows(1);
-        applyValidations(sh, spec.validations);
-        applyColors(sh, spec.colors);
-      }
-      written.push(name);
+      writeSheetSpec_(ss, spec.name || 'Hoja', spec);
+      written.push(spec.name || 'Hoja');
     });
 
-    // Hojas de DATOS normalizadas (v11): fuente de verdad, pequeñas, como texto.
+    // Hojas de DATOS normalizadas: fuente de verdad, pequeñas, como texto.
     if (body.datos) {
       for (var dn in body.datos) {
         var dspec = body.datos[dn] || {};
-        writeDataSheet_(ss, dn, dspec.rows || [], dspec.validations, dspec.colors);
+        dspec.asText = true;
+        writeSheetSpec_(ss, dn, dspec);
         written.push(dn);
       }
+    }
+
+    // En el envío completo, el servidor escribe el Resumen (fórmulas vivas) y la hoja Léeme.
+    if (body.sheets && body.sheets.length) {
+      try { escribirResumenVivo_(ss); written.push('Resumen'); } catch (e5) {}
+      try { escribirLeeme_(ss); } catch (e6) {}
     }
 
     // Snapshot heredado (_datos): SOLO si no supera el límite de 50.000 caracteres
@@ -291,23 +288,110 @@ function writeAll(body) {
     return { ok: true, sheets: written };
 }
 
-// Hoja de datos: todo como TEXTO (conserva ceros, fechas ISO legibles) + encabezado fijo.
-function writeDataSheet_(ss, name, rows, validations, colors) {
+// Escritura unificada de una hoja: filas + (opcional) texto plano, columnas con
+// FÓRMULAS (plantilla con {r} = n° de fila), desplegables y colores.
+// spec: { rows, asText, formulaCols: {encabezado: plantilla}, validations, colors }
+function writeSheetSpec_(ss, name, spec) {
   var sh = ss.getSheetByName(name) || ss.insertSheet(name);
   sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).clearDataValidations();
   sh.setConditionalFormatRules([]);
   sh.clearContents();
-  if (!rows || !rows.length) return;
+  var rows = spec.rows || [];
+  if (!rows.length) return;
   var maxc = 1;
   rows.forEach(function (r) { if (r.length > maxc) maxc = r.length; });
   rows.forEach(function (r) { while (r.length < maxc) r.push(''); });
   var rng = sh.getRange(1, 1, rows.length, maxc);
-  rng.setNumberFormat('@');
+  if (spec.asText) rng.setNumberFormat('@');   // conserva ceros a la izquierda y fechas ISO
   rng.setValues(rows);
   sh.setFrozenRows(1);
-  sh.getRange(1, 1, 1, maxc).setFontWeight('bold').setBackground('#15616d').setFontColor('#ffffff');
-  if (validations) applyValidations(sh, validations);
-  if (colors) applyColors(sh, colors);
+  if (spec.asText) sh.getRange(1, 1, 1, maxc).setFontWeight('bold').setBackground('#15616d').setFontColor('#ffffff');
+  // Columnas con fórmula (descriptores que miran el maestro "Equipos")
+  if (spec.formulaCols && rows.length > 1) {
+    var hdr = rows[0].map(String);
+    for (var fh in spec.formulaCols) {
+      var ci = hdr.indexOf(fh);
+      if (ci === -1) continue;
+      var tpl = spec.formulaCols[fh];
+      var col = sh.getRange(2, ci + 1, rows.length - 1, 1);
+      col.setNumberFormat('General');   // una columna con '@' no evalúa fórmulas
+      var formulas = [];
+      for (var r = 2; r <= rows.length; r++) formulas.push([tpl.replace(/\{r\}/g, String(r))]);
+      col.setFormulas(formulas);
+    }
+  }
+  if (spec.validations) applyValidations(sh, spec.validations);
+  if (spec.colors) applyColors(sh, spec.colors);
+}
+
+// Resumen con FÓRMULAS VIVAS sobre Eventos/Equipos/Pendientes (se recalcula solo).
+// Columnas de la hoja Eventos (delgada): F=Tipo de Registro · H=N° Mes · I=Programa · L=Estado.
+function escribirResumenVivo_(ss) {
+  var sh = ss.getSheetByName('Resumen') || ss.insertSheet('Resumen');
+  sh.clearContents(); sh.setConditionalFormatRules([]);
+  var MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  sh.getRange(1, 1).setValue('Resumen — Programación MP 2026 (indicadores con fórmulas: se actualizan solos)').setFontWeight('bold').setFontSize(12);
+  var kv = [
+    ['Equipos en maestro', '=MAX(0,COUNTA(Equipos!A:A)-1)'],
+    ['Eventos totales', '=MAX(0,COUNTA(Eventos!A:A)-1)'],
+    ['Eventos preventivos', '=COUNTIF(Eventos!F:F,"Preventivo")'],
+    ['Eventos correctivos', '=COUNTIF(Eventos!F:F,"Correctivo")'],
+    ['MP realizadas', '=COUNTIF(Eventos!L:L,"Realizada*")'],
+    ['MP reprogramadas', '=COUNTIF(Eventos!L:L,"Reprogramada")'],
+    ['MP pendientes', '=COUNTIF(Eventos!L:L,"Pendiente*")'],
+    ['Pendientes de gestión abiertos', '=COUNTIF(Pendientes!M:M,"Abierto")+COUNTIF(Pendientes!M:M,"En progreso")']
+  ];
+  for (var i = 0; i < kv.length; i++) {
+    sh.getRange(3 + i, 1).setValue(kv[i][0]);
+    sh.getRange(3 + i, 2).setFormula(kv[i][1]);
+  }
+  var base = 3 + kv.length + 1;
+  var head = ['Mes', 'Programadas', 'Realizadas', 'Reprogramadas', 'Pendientes'];
+  sh.getRange(base, 1, 1, head.length).setValues([head]).setFontWeight('bold').setBackground('#15616d').setFontColor('#ffffff');
+  for (var m = 1; m <= 12; m++) {
+    var r = base + m;
+    sh.getRange(r, 1).setValue(MESES[m - 1]);
+    sh.getRange(r, 2).setFormula('=COUNTIFS(Eventos!$H:$H,"' + m + '",Eventos!$I:$I,"?*")');
+    sh.getRange(r, 3).setFormula('=COUNTIFS(Eventos!$H:$H,"' + m + '",Eventos!$L:$L,"Realizada*")');
+    sh.getRange(r, 4).setFormula('=COUNTIFS(Eventos!$H:$H,"' + m + '",Eventos!$L:$L,"Reprogramada")');
+    sh.getRange(r, 5).setFormula('=COUNTIFS(Eventos!$H:$H,"' + m + '",Eventos!$L:$L,"Pendiente*")');
+  }
+  var tot = base + 13;
+  sh.getRange(tot, 1).setValue('Total').setFontWeight('bold');
+  for (var c = 2; c <= 5; c++) {
+    var L = columnToLetter(c);
+    sh.getRange(tot, c).setFormula('=SUM(' + L + (base + 1) + ':' + L + (base + 12) + ')').setFontWeight('bold');
+  }
+  sh.getRange(1, 1, 1, 1).setWrap(false);
+  sh.setColumnWidth(1, 230);
+}
+
+// Hoja "Léeme": describe la estructura para cualquier persona que abra la planilla.
+function escribirLeeme_(ss) {
+  var sh = ss.getSheetByName('Léeme') || ss.insertSheet('Léeme', 0);
+  sh.clearContents();
+  var ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Santiago', 'yyyy-MM-dd HH:mm');
+  var lineas = [
+    ['Plan de Mantenciones Preventivas 2026 — Estructura de la planilla (' + APP_VERSION + ')'],
+    [''],
+    ['Esta planilla la escribe la aplicación "Gestión MP 2026". Última actualización: ' + ahora],
+    [''],
+    ['HOJAS:'],
+    ['· Equipos — MAESTRO del inventario (una fila por equipo). Es la única fuente de los datos del equipo.'],
+    ['· Eventos — una fila por evento (preventivo o correctivo). Las columnas N° Inventario/Equipo/Familia/Servicio son FÓRMULAS que miran el maestro.'],
+    ['· RegistrosMP / Correctivos / Pendientes / Tareas / Bitacora — lo registrado en la app, con ID estable (RegID/CorrID/PendID) y fecha de registro.'],
+    ['· Archivos — enlaces a los documentos subidos a Drive.'],
+    ['· Resumen — indicadores con fórmulas vivas (se actualizan solos).'],
+    ['· Catalogos — listas de ejecutores y códigos.'],
+    [''],
+    ['REGLAS:'],
+    ['· NO editar las columnas con fórmulas (descriptores del equipo): se corrigen en el maestro "Equipos".'],
+    ['· Lo ideal es registrar desde la aplicación; la app reescribe estas hojas en cada guardado.'],
+    ['· Respaldo automático semanal en Drive: carpeta "' + ARCHIVOS_ROOT + '/Respaldos".']
+  ];
+  sh.getRange(1, 1, lineas.length, 1).setValues(lineas);
+  sh.getRange(1, 1).setFontWeight('bold').setFontSize(12);
+  sh.setColumnWidth(1, 900);
 }
 
 // _meta: versión del esquema y trazas del último envío (hoja oculta clave/valor).
