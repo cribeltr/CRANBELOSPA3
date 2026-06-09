@@ -625,7 +625,7 @@
       <label class="chk"><input id="sheetsAuto" type="checkbox"> Actualizar Google Sheets al registrar</label>
     </div>
     <div id="sheetsStatus" class="inline-msg"></div>
-    <details style="margin-top:10px">
+    <details id="sheetsHowTo" style="margin-top:10px">
       <summary>¿Cómo conectar? (configuración única)</summary>
       <ol class="steps">
         <li>Crea una <b>Google Sheet</b> nueva (o abre la que usarás).</li>
@@ -4096,8 +4096,10 @@ function json(obj) {
   $('#sheetsUrl').value = sheetsUrl();
   $('#sheetsAuto').checked = sheetsAuto();
   if (GAS) {
-    // Servida desde Apps Script: conexión directa, sin URL -> se oculta ese apartado.
+    // Servida desde Apps Script: conexión directa, sin URL -> se ocultan el
+    // apartado de URL, el botón "Guardar URL" y las instrucciones "¿Cómo conectar?".
     const urlField = $('#sheetsUrlField'); if (urlField) urlField.style.display = 'none';
+    const howTo = $('#sheetsHowTo'); if (howTo) howTo.style.display = 'none';
     $('#sheetsSave').style.display = 'none';
     showInline($('#sheetsStatus'), 'ok', '✓ Conectado a esta planilla (Apps Script). Usa “Enviar” y “Traer” directamente.');
   }
