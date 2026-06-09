@@ -8,20 +8,40 @@ con Google Sheets mediante Apps Script.
 
 ## Archivos
 
-- **`index-appsscript.html`** — la aplicación completa (UI + lógica + el módulo de
-  parseo `MP` y el constructor de Excel `MPOUT`). Carga ExcelJS por CDN, por lo que
-  funciona tanto alojada aparte como servida desde Apps Script.
-- **`Code.gs`** — puente de Google Apps Script: crea/actualiza las hojas en la
-  planilla, sube archivos a Drive y sirve la app. La misma copia está incrustada en
-  el HTML (botón *Copiar script*).
+- **`index-appsscript.html`** — la aplicación completa (UI + lógica + módulo de
+  parseo `MP` + constructor de Excel `MPOUT`). Funciona alojada aparte o servida
+  desde Apps Script.
+- **`Code.gs`** — puente de Google Apps Script (v11). La misma copia está incrustada
+  en el HTML (botón *Copiar script*).
+- **`PROPUESTA.md`** — diagnóstico y diseño de la estructura v11 (implementada).
 
-## Correcciones aplicadas
+## Estructura de la planilla (esquema v11)
 
-- **`toNum('')` devolvía `0`** (porque en JS `Number('') === 0`). Esto provocaba dos
-  síntomas: las columnas numéricas vacías (*Año Instalación*, *Vida Útil Residual*)
-  se exportaban como `0` en lugar de quedar en blanco, y las filas sin ID numérico
-  (p. ej. rótulos o subtotales) se colaban como equipos fantasma. Ahora se descarta
-  vacío/espacios antes de convertir.
-- **Zona de carga clicable por completo**: el texto invita a "hacer clic para
-  seleccionar", pero solo el botón abría el explorador. Ahora un clic en cualquier
-  parte de la zona abre el selector (sin doble apertura al pulsar el botón).
+**Capa de DATOS** (fuente de verdad; se actualiza en cada guardado, hojas pequeñas):
+`Equipos` · `RegistrosMP` · `Correctivos` · `Pendientes` · `Tareas` · `Bitacora` · `Archivos`.
+Cada fila lleva ID estable (`RegID`/`CorrID`/`PendID`) y fecha de registro.
+
+**Capa de REPORTES** (se regeneran con *Enviar / actualizar*): `Eventos` · `Catalogos`
+· `Resumen` — formato del hospital intacto.
+
+`_meta` (oculta): versión del esquema y último envío. `_datos` (oculta, transición):
+snapshot JSON heredado; solo se escribe si cabe en una celda (límite 50.000 caracteres)
+y deja de ser necesario con el esquema v11.
+
+**Drive:** `MP 2026 - Archivos/` con subcarpeta por equipo (las nuevas con ID acolchado,
+p. ej. `ID 0049 · …`), `Descargas/` y `Respaldos/` (copia semanal automática de la
+planilla, se conservan 8). Nivel de compartición configurable en `Code.gs`
+(`COMPARTIR_ARCHIVOS`: `enlace` · `dominio` · `privado`).
+
+## Interfaz
+
+`🏠 Inicio` (KPIs del mes, alertas clicables, sapo del día, última actividad, estado
+de sincronización) · **buscador global** de equipos en el panel lateral · navegación
+agrupada (Operación / Gestión / Herramientas) · edición de mantenciones (conserva el
+`RegID`) · confirmación al eliminar · barra inferior en móvil.
+
+## Verificación
+
+Suite de simulación en navegador headless (jsdom): 38 aserciones de regresión +
+27 de las fases v11 (push liviano/completo, restauración desde hojas de datos con
+multi-pendiente por equipo, Inicio, buscador, edición, confirmaciones).

@@ -410,6 +410,45 @@
     header h1{font-size:15.5px}
     .btn{padding:10px 14px}
   }
+  /* ===================== Buscador global (sidebar) ===================== */
+  .side-search{position:relative;margin-bottom:10px}
+  .side-search input{width:100%;padding:9px 11px;font-size:13px;border-radius:10px}
+  .side-search .suggest{border-radius:0 0 10px 10px}
+  .layout.collapsed .side-search{display:none}
+  /* ===================== Pantalla Inicio ===================== */
+  .home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start}
+  .home-sec-title{font-size:13px;font-weight:800;color:var(--teal-d);text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px}
+  .alertchips{display:flex;flex-wrap:wrap;gap:8px}
+  .alertchip{appearance:none;border:1px solid var(--line);border-radius:20px;padding:7px 13px;font-size:13px;font-weight:700;
+    cursor:pointer;background:#fff;display:inline-flex;align-items:center;gap:7px;transition:box-shadow .15s}
+  .alertchip:hover{box-shadow:0 2px 8px rgba(0,0,0,.1)}
+  .alertchip .n{font-size:15px}
+  .alertchip.a-warn{background:#fff6df;border-color:#f0e2b8;color:#8a6300}
+  .alertchip.a-err{background:#fdecea;border-color:#f3c9c9;color:#b3261e}
+  .alertchip.a-st{background:#fff3e0;border-color:#f0d9b8;color:#8a5a00}
+  .alertchip.a-ok{background:#e8f6ed;border-color:#cde9d6;color:#1b7f3b;cursor:default}
+  .actlist{display:flex;flex-direction:column;gap:6px}
+  .actitem{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:9px;background:#f9fbfc;
+    padding:8px 11px;font-size:13px;cursor:pointer}
+  .actitem:hover{border-color:var(--teal-l)}
+  .actitem .ad{flex:0 0 auto;color:var(--muted);font-size:12px;min-width:78px}
+  .actitem .at{flex:0 0 auto}
+  .actitem .ax{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+  .home-sync{margin-top:10px;font-size:12.5px;color:var(--muted)}
+  .home-empty{text-align:center;padding:38px 16px}
+  .home-empty .he-ico{font-size:42px}
+  .home-empty h3{margin:10px 0 6px;color:var(--teal-d)}
+  /* ===================== Barra inferior (móvil) ===================== */
+  .bottombar{display:none}
+  @media(max-width:880px){
+    .bottombar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;background:rgba(255,255,255,.97);
+      backdrop-filter:blur(8px);border-top:1px solid var(--line);box-shadow:0 -4px 16px rgba(10,40,48,.08)}
+    .bottombar button{appearance:none;border:0;background:transparent;flex:1;padding:8px 4px 10px;cursor:pointer;
+      display:flex;flex-direction:column;align-items:center;gap:2px;font-size:17px;color:var(--muted)}
+    .bottombar button span{font-size:10.5px;font-weight:700}
+    .bottombar button.active{color:var(--teal-d)}
+    body{padding-bottom:64px}
+  }
 </style>
 </head>
 <body>
@@ -423,13 +462,20 @@
   <div class="layout" id="layout">
   <aside class="sidebar" id="sidebar">
     <button class="side-toggle" id="sideToggle" type="button" title="Contraer/expandir panel" aria-label="Contraer panel"><span class="ico">⮜</span></button>
+    <div class="side-search" id="sideSearch">
+      <input id="globalSearch" type="text" placeholder="🔎 Buscar equipo…" autocomplete="off" />
+      <div id="globalSuggest" class="suggest"></div>
+    </div>
     <nav class="sidenav" role="tablist" aria-label="Secciones">
-      <div class="navgrp">General</div>
-      <button class="tab active" type="button" data-tab="cargar"><span class="ico">📂</span><span class="lbl">Cargar y generar</span></button>
-      <button class="tab" type="button" data-tab="inventario"><span class="ico">🩺</span><span class="lbl">Equipo</span><em class="navcount" id="navEqCount"></em></button>
+      <button class="tab active" type="button" data-tab="inicio"><span class="ico">🏠</span><span class="lbl">Inicio</span></button>
+      <div class="navgrp">Operación</div>
+      <button class="tab" type="button" data-tab="inventario"><span class="ico">🩺</span><span class="lbl">Equipos</span><em class="navcount" id="navEqCount"></em></button>
       <button class="tab" type="button" data-tab="registrar"><span class="ico">🔧</span><span class="lbl">Registrar</span></button>
-      <button class="tab" type="button" data-tab="resumen"><span class="ico">📊</span><span class="lbl">Resumen mensual</span></button>
       <button class="tab" type="button" data-tab="pendientes"><span class="ico">📌</span><span class="lbl">Pendientes</span><em class="navcount" id="navPendCount"></em></button>
+      <div class="navgrp">Gestión</div>
+      <button class="tab" type="button" data-tab="resumen"><span class="ico">📊</span><span class="lbl">Resumen mensual</span></button>
+      <div class="navgrp">Herramientas</div>
+      <button class="tab" type="button" data-tab="cargar"><span class="ico">📂</span><span class="lbl">Importar programación</span></button>
       <button class="tab" type="button" data-tab="utilidades"><span class="ico">🧰</span><span class="lbl">Utilidades PDF</span></button>
       <button class="tab" type="button" data-tab="sheets"><span class="ico">☁️</span><span class="lbl">Google Sheets</span></button>
       <button class="tab" type="button" data-tab="ayuda"><span class="ico">📖</span><span class="lbl">Ayuda</span></button>
@@ -437,7 +483,11 @@
   </aside>
   <div class="content">
 
-  <section class="tabpanel active" id="tab-cargar">
+  <section class="tabpanel active" id="tab-inicio">
+    <div id="inicioContent"></div>
+  </section>
+
+  <section class="tabpanel" id="tab-cargar">
   <div class="card" id="card-cargar">
     <ol class="steps">
       <li>Suba el archivo <b>Programación MP 2026</b> (<code>.xlsm</code> o <code>.xlsx</code>).</li>
@@ -650,12 +700,18 @@
       <div class="actions" style="margin-top:0"><button id="copyScript" class="btn btn-ghost btn-sm" type="button">📋 Copiar script</button></div>
       <p class="muted" style="margin:8px 0 0">⚠️ Si <b>Probar conexión</b> dice que el script está desactualizado, <b>no copies de aquí</b> (esta copia se sirve desde la misma versión publicada, así que también sería vieja): usa el archivo <code>Code.gs</code> que te entregaron y publica <b>Versión nueva</b>.</p>
       <pre id="gsScript" class="code">/****************************************************************************
- *  ===&gt;  VERSIÓN: v10-equipos-paginado  &lt;===  (debe coincidir con "Probar conexión")
+ *  ===&gt;  VERSIÓN: v11-datos-normalizados  &lt;===  (debe coincidir con "Probar conexión")
  *  Puente Google Sheets — Programación MP 2026
  *  --------------------------------------------------------------------------
- *  Crea/actualiza en tu planilla las MISMAS hojas que el Excel:
- *  "Eventos", "Catalogos" y "Resumen", con desplegables (Resultado, Estado
- *  Final, Ejecutor) y coloreado por Estado en la hoja Eventos.
+ *  ESTRUCTURA DE LA PLANILLA (v11):
+ *   · CAPA DE DATOS (fuente de verdad, se actualiza EN CADA guardado, hojas pequeñas):
+ *       Equipos · RegistrosMP · Correctivos · Pendientes · Tareas · Bitacora · Archivos
+ *       (cada fila lleva ID estable: RegID / CorrID / PendID + fecha de registro)
+ *   · CAPA DE REPORTES (se regeneran con "Enviar / actualizar"):
+ *       Eventos · Catalogos · Resumen   (formato del hospital, intacto)
+ *   · _meta (oculta): versión del esquema y último envío.
+ *   · _datos (oculta, transición): snapshot JSON heredado. Se escribe SOLO si no
+ *     supera el límite de 50.000 caracteres por celda; la fuente real son las hojas.
  *
  *  Cómo usarlo (configuración única):
  *   1. Crea (o abre) una Google Sheet.
@@ -668,23 +724,16 @@
  *   5. Copia la "URL de la aplicación web" (termina en /exec) y pégala en la
  *      app (sección "Guardar en Google Sheets").
  *
- *  Cada hoja se REEMPLAZA con el contenido enviado (las demás hojas no se tocan).
- *
  *  -- OPCIONAL: servir la app DESDE aquí (el link /exec abre el programa) --
  *   a. En el editor de Apps Script: "+" -&gt; HTML -&gt; nómbralo EXACTAMENTE "index".
- *   b. Pega dentro TODO el contenido de "index-appsscript.html" (NO el index.html
- *      grande: dentro de Apps Script el ExcelJS incrustado no se ejecuta bien;
- *      la versión -appsscript lo carga por CDN y sí funciona).
- *   c. Implementar -&gt; Nueva versión. La URL /exec abre la app ya conectada a
- *      esta planilla (escribe y lee con google.script.run, sin pegar la URL).
- *   Nota: dentro de Apps Script el botón "Descargar Excel" puede quedar
- *   bloqueado por el iframe protegido; para descargar usa la app alojada aparte.
+ *   b. Pega dentro TODO el contenido de "index-appsscript.html".
+ *   c. Implementar -&gt; Nueva versión. La URL /exec abre la app ya conectada.
  *
- *  -- Subir archivos a Drive (opcional) --
- *   La app puede subir archivos del equipo a tu Drive: crea la carpeta
- *   "MP 2026 - Archivos" con una subcarpeta por equipo y agrega el ENLACE a la
- *   hoja "Archivos". La PRIMERA vez pedirá un permiso adicional de Drive: vuelve
- *   a "Implementar -&gt; Nueva versión" y autoriza cuando lo solicite.
+ *  -- Archivos en Drive --
+ *   Carpeta raíz "MP 2026 - Archivos" con una subcarpeta por equipo, "Descargas"
+ *   para los Excel generados y "Respaldos" con una copia semanal automática de
+ *   la planilla (se conservan las últimas 8). El nivel de compartición de los
+ *   archivos subidos se controla con COMPARTIR_ARCHIVOS (abajo).
  ****************************************************************************/
 
 function doPost(e) {
@@ -706,11 +755,13 @@ function appPush(body) {
   try { return writeAll(typeof body === 'string' ? JSON.parse(body) : body); }
   finally { lock.releaseLock(); }
 }
-var APP_VERSION = 'v10-equipos-paginado';   // para confirmar qué versión está publicada (Probar conexión)
+var APP_VERSION = 'v11-datos-normalizados';   // para confirmar qué versión está publicada (Probar conexión)
 function appPull() { return readAll(false); }   // sin equipos (evita el límite de tamaño de google.script.run)
-// Inventario completo (de _equipos o, si no existe, reconstruido desde Eventos).
+// Inventario completo: hoja "Equipos" (v11) o "_equipos" (heredada) o reconstruido desde Eventos.
 function allEquipos(ss) {
-  var es = ss.getSheetByName('_equipos');
+  var es = ss.getSheetByName('Equipos');
+  if (es &amp;&amp; es.getLastRow() &gt; 1) return sheetVals(ss, 'Equipos');
+  es = ss.getSheetByName('_equipos');
   return (es &amp;&amp; es.getLastRow() &gt; 1) ? sheetVals(ss, '_equipos') : equiposFromEventos(ss);
 }
 // Inventario POR PARTES (paginado) para no superar el límite de google.script.run.
@@ -777,18 +828,29 @@ function appSaveXlsx(body) {
   var blob = Utilities.newBlob(Utilities.base64Decode(p.dataBase64),
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', nombre);
   var file = folder.createFile(blob);
-  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+  compartir_(file);
   return { ok: true, name: nombre, url: file.getUrl(), download: 'https://drive.google.com/uc?export=download&amp;id=' + file.getId() };
 }
 
-/* ------------------------- Subida de archivos a Drive -------------------------
- *  Crea (si no existe) la carpeta raíz "MP 2026 - Archivos" y, dentro, una
- *  subcarpeta por equipo. Guarda el archivo, lo comparte como "cualquiera con el
- *  enlace puede ver" y agrega una fila con el ENLACE a la hoja "Archivos".
- *  payload: { equipoId, equipo, inv, serie, servicio, categoria, descripcion, nombre, mime, dataBase64 }
- *  Requiere autorización de Drive (al implementar pedirá el permiso una vez).
+/* ------------------------- Archivos en Drive -------------------------------
+ *  Carpeta raíz + subcarpeta por equipo. Las carpetas YA existentes (nombre
+ *  antiguo "{id} - {equipo}…") se siguen usando; las nuevas se crean con el ID
+ *  con ceros ("ID 0049 · …") para que Drive las ordene naturalmente.
  * ----------------------------------------------------------------------------- */
 var ARCHIVOS_ROOT = 'MP 2026 - Archivos';
+
+// Nivel de compartición de los archivos subidos y Excel generados:
+//   'enlace'  = cualquiera con el enlace puede ver (como hasta ahora)
+//   'dominio' = solo cuentas del dominio (recomendado en Google Workspace)
+//   'privado' = no se comparte (solo el dueño y con quien comparta la carpeta)
+var COMPARTIR_ARCHIVOS = 'enlace';
+function compartir_(file) {
+  try {
+    if (COMPARTIR_ARCHIVOS === 'enlace') file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    else if (COMPARTIR_ARCHIVOS === 'dominio') file.setSharing(DriveApp.Access.DOMAIN_WITH_LINK, DriveApp.Permission.VIEW);
+    // 'privado': no se toca el permiso
+  } catch (e) {}
+}
 
 function getOrCreateFolder(parent, name) {
   var it = parent.getFoldersByName(name);
@@ -796,27 +858,33 @@ function getOrCreateFolder(parent, name) {
 }
 function sanitizeName(s) { return String(s == null ? '' : s).replace(/[\\/:*?"&lt;&gt;|]/g, '-').trim() || 'Equipo'; }
 
+// Carpeta del equipo: reutiliza la antigua si existe; si no, crea con ID acolchado.
+function carpetaDeEquipo_(root, p) {
+  var sufijo = (p.inv ? ' (Inv ' + p.inv + ')' : (p.serie ? ' (Serie ' + p.serie + ')' : ''));
+  var antigua = sanitizeName((p.equipoId ? p.equipoId + ' - ' : '') + (p.equipo || 'Equipo') + sufijo);
+  var it = root.getFoldersByName(antigua);
+  if (it.hasNext()) return it.next();
+  var idPad = p.equipoId ? ('ID ' + ('0000' + String(p.equipoId)).slice(-4) + ' · ') : '';
+  return getOrCreateFolder(root, sanitizeName(idPad + (p.equipo || 'Equipo') + sufijo));
+}
+
 function uploadArchivo(p) {
   if (!p || !p.dataBase64) return { ok: false, error: 'Sin datos de archivo.' };
   var root = getOrCreateFolder(DriveApp.getRootFolder(), ARCHIVOS_ROOT);
-  var carpetaEquipo = sanitizeName(
-    (p.equipoId ? p.equipoId + ' - ' : '') + (p.equipo || 'Equipo') +
-    (p.inv ? ' (Inv ' + p.inv + ')' : (p.serie ? ' (Serie ' + p.serie + ')' : ''))
-  );
-  var folder = getOrCreateFolder(root, carpetaEquipo);
+  var folder = carpetaDeEquipo_(root, p);
 
   var nombre = sanitizeName(p.nombre || 'archivo');
   var bytes = Utilities.base64Decode(p.dataBase64);
   var blob = Utilities.newBlob(bytes, p.mime || 'application/octet-stream', nombre);
   var file = folder.createFile(blob);
-  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e2) {}
+  compartir_(file);
   var url = file.getUrl();
 
   // Además del archivo, generar un .txt con la descripción y el MISMO nombre base.
   if (p.descripcion) {
     var txtName = nombre.replace(/\.[^.]+$/, '') + '.txt';
     var txtFile = folder.createFile(Utilities.newBlob(p.descripcion, 'text/plain', txtName));
-    try { txtFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e4) {}
+    compartir_(txtFile);
   }
 
   // Registrar el enlace en la hoja "Archivos"
@@ -851,6 +919,14 @@ function uploadArchivo(p) {
   return { ok: true, url: url, name: nombre, folder: folder.getUrl(), categoria: p.categoria || '', descripcion: p.descripcion || '', fecha: fecha };
 }
 
+/* ------------------------------ Escritura ---------------------------------
+ *  body.sheets  -&gt; hojas de REPORTE (Eventos/Catalogos/Resumen). Solo llegan
+ *                  con "Enviar / actualizar" (regeneración a demanda).
+ *  body.datos   -&gt; hojas de DATOS (RegistrosMP/Correctivos/Pendientes/Tareas/
+ *                  Bitacora). Llegan EN CADA guardado: son pequeñas.
+ *  body.equipos -&gt; hoja "Equipos" (inventario; llega al importar o enviar todo).
+ *  body.data    -&gt; snapshot JSON heredado (_datos). Se escribe solo si cabe.
+ * --------------------------------------------------------------------------- */
 function writeAll(body) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var written = [];
@@ -877,16 +953,29 @@ function writeAll(body) {
       written.push(name);
     });
 
-    // Snapshot de datos de la app (para poder LEERLOS al reabrir el programa)
-    if (body.data !== undefined &amp;&amp; body.data !== null) {
-      var ds = ss.getSheetByName('_datos') || ss.insertSheet('_datos');
-      ds.getRange(1, 1).setValue(typeof body.data === 'string' ? body.data : JSON.stringify(body.data));
-      try { ds.hideSheet(); } catch (e2) {}
+    // Hojas de DATOS normalizadas (v11): fuente de verdad, pequeñas, como texto.
+    if (body.datos) {
+      for (var dn in body.datos) {
+        var dspec = body.datos[dn] || {};
+        writeDataSheet_(ss, dn, dspec.rows || [], dspec.validations, dspec.colors);
+        written.push(dn);
+      }
     }
 
-    // Inventario de equipos (hoja oculta) para auto-cargar al abrir el link
+    // Snapshot heredado (_datos): SOLO si no supera el límite de 50.000 caracteres
+    // por celda (sobre ese tamaño setValue falla; la fuente real son las hojas de datos).
+    if (body.data !== undefined &amp;&amp; body.data !== null) {
+      var js = (typeof body.data === 'string') ? body.data : JSON.stringify(body.data);
+      if (js.length &lt; 45000) {
+        var ds = ss.getSheetByName('_datos') || ss.insertSheet('_datos');
+        ds.getRange(1, 1).setValue(js);
+        try { ds.hideSheet(); } catch (e2) {}
+      }
+    }
+
+    // Inventario de equipos (hoja "Equipos", visible) para auto-cargar al abrir el link
     if (body.equipos &amp;&amp; body.equipos.length) {
-      var es = ss.getSheetByName('_equipos') || ss.insertSheet('_equipos');
+      var es = ss.getSheetByName('Equipos') || ss.insertSheet('Equipos');
       es.clear();
       var ec = body.equipos[0].length;
       body.equipos.forEach(function (r) { while (r.length &lt; ec) r.push(''); });
@@ -894,10 +983,74 @@ function writeAll(body) {
       rng.setNumberFormat('@');                 // texto: conserva ceros a la izquierda
       rng.setValues(body.equipos);
       es.setFrozenRows(1);
-      try { es.hideSheet(); } catch (e3) {}
+      try { es.showSheet(); } catch (e3) {}
     }
 
+    setMeta_(ss, body);
+    try { ensureRespaldoTrigger_(); } catch (e4) {}
+
     return { ok: true, sheets: written };
+}
+
+// Hoja de datos: todo como TEXTO (conserva ceros, fechas ISO legibles) + encabezado fijo.
+function writeDataSheet_(ss, name, rows, validations, colors) {
+  var sh = ss.getSheetByName(name) || ss.insertSheet(name);
+  sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).clearDataValidations();
+  sh.setConditionalFormatRules([]);
+  sh.clearContents();
+  if (!rows || !rows.length) return;
+  var maxc = 1;
+  rows.forEach(function (r) { if (r.length &gt; maxc) maxc = r.length; });
+  rows.forEach(function (r) { while (r.length &lt; maxc) r.push(''); });
+  var rng = sh.getRange(1, 1, rows.length, maxc);
+  rng.setNumberFormat('@');
+  rng.setValues(rows);
+  sh.setFrozenRows(1);
+  sh.getRange(1, 1, 1, maxc).setFontWeight('bold').setBackground('#15616d').setFontColor('#ffffff');
+  if (validations) applyValidations(sh, validations);
+  if (colors) applyColors(sh, colors);
+}
+
+// _meta: versión del esquema y trazas del último envío (hoja oculta clave/valor).
+function setMeta_(ss, body) {
+  try {
+    var sh = ss.getSheetByName('_meta') || ss.insertSheet('_meta');
+    var ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Santiago', 'yyyy-MM-dd HH:mm:ss');
+    var n = function (k) { var d = body.datos &amp;&amp; body.datos[k]; return d &amp;&amp; d.rows ? Math.max(0, d.rows.length - 1) : ''; };
+    var kv = [
+      ['Esquema', '2'],
+      ['Versión script', APP_VERSION],
+      ['Último envío', ahora],
+      ['Tipo de envío', body.sheets &amp;&amp; body.sheets.length ? 'completo (reportes+datos)' : 'datos'],
+      ['RegistrosMP', n('RegistrosMP')], ['Correctivos', n('Correctivos')],
+      ['Pendientes', n('Pendientes')], ['Tareas', n('Tareas')], ['Bitacora', n('Bitacora')]
+    ];
+    sh.clearContents();
+    sh.getRange(1, 1, kv.length, 2).setValues(kv);
+    try { sh.hideSheet(); } catch (e) {}
+  } catch (e2) {}
+}
+
+/* ------------------------- Respaldo automático ------------------------------
+ *  Copia semanal de la planilla a "MP 2026 - Archivos/Respaldos" (conserva las
+ *  últimas 8). El disparador se crea solo, en el primer envío. También se puede
+ *  ejecutar a mano desde el editor: respaldoSemanal().
+ * ----------------------------------------------------------------------------- */
+function respaldoSemanal() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var file = DriveApp.getFileById(ss.getId());
+  var root = getOrCreateFolder(DriveApp.getRootFolder(), ARCHIVOS_ROOT);
+  var folder = getOrCreateFolder(root, 'Respaldos');
+  var fecha = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Santiago', 'yyyy-MM-dd');
+  file.makeCopy('Respaldo ' + fecha + ' · ' + ss.getName(), folder);
+  var it = folder.getFiles(); var arr = [];
+  while (it.hasNext()) arr.push(it.next());
+  arr.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); });
+  for (var i = 8; i &lt; arr.length; i++) arr[i].setTrashed(true);
+}
+function ensureRespaldoTrigger_() {
+  var existe = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'respaldoSemanal'; });
+  if (!existe) ScriptApp.newTrigger('respaldoSemanal').timeBased().everyWeeks(1).onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(7).create();
 }
 
 // Columna (1-based) cuyo encabezado (fila 1) coincide con 'header'
@@ -977,6 +1130,7 @@ function readAll(includeEquipos) {
   var out = {
     ok: true, ver: APP_VERSION, count: n, data: data,
     tablas: {
+      RegistrosMP: sheetVals(ss, 'RegistrosMP'),
       Pendientes: sheetVals(ss, 'Pendientes'),
       Correctivos: sheetVals(ss, 'Correctivos'),
       Tareas: sheetVals(ss, 'Tareas'),
@@ -1245,6 +1399,13 @@ function json(obj) {
     </div>
   </div>
 </div>
+
+<nav class="bottombar" id="bottomBar" aria-label="Navegación inferior">
+  <button type="button" data-tab="inicio" class="active">🏠<span>Inicio</span></button>
+  <button type="button" data-tab="inventario">🩺<span>Equipos</span></button>
+  <button type="button" data-tab="pendientes">📌<span>Pend.</span></button>
+  <button type="button" data-tab="resumen">📊<span>Resumen</span></button>
+</nav>
 
 <footer>Funciona sin conexión a internet · Procesamiento local en el navegador · ExcelJS</footer>
 
@@ -2346,20 +2507,80 @@ function json(obj) {
       ]
     };
   }
-  // Construye el mismo libro del Excel y lo pasa a filas por hoja
+  // ---- IDs estables y trazabilidad (esquema v2) ---------------------------
+  let uidSeq = 0;
+  function uid(prefix) { return prefix + '-' + Date.now().toString(36) + '-' + (++uidSeq).toString(36) + Math.random().toString(36).slice(2, 6); }
+  function nowIso() { const d = new Date(); return isoDate(d) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+  // Migración suave: asigna IDs a registros antiguos (localStorage / snapshot heredado).
+  function ensureIds() {
+    state.registros.forEach(r => { if (!r.regId) r.regId = uid('R'); });
+    state.correctivos.forEach(c => { if (!c.corrId) c.corrId = uid('C'); });
+    state.pendientes.forEach(p => { if (!p.pendId) p.pendId = uid('P'); });
+  }
+
+  // ---- Hojas de DATOS normalizadas (fuente de verdad en la planilla) ------
+  const sd = d => (d instanceof Date) ? isoDate(d) : (d || '');
+  function registrosToRows() {
+    const rows = [['RegID', 'ID', 'N° Inventario', 'N° Serie', 'Equipo', 'Mes', 'N° Mes', 'Fecha de Ejecución', 'Programa (P)', 'Resultado (R)', 'Causal', 'Ejecutor', 'Estado Final del Equipo', 'Observación', 'Adjunto', 'Nombre Adjunto', 'Registrado El', 'Actualizado El']];
+    state.registros.forEach(r => rows.push([r.regId || '', r.id || '', r.inv || '', r.serie || '', r.equipo || '', r.mes || '', String(r.nMes || ''), sd(r.fechaEjecucion), r.programa || '', r.resultado || '', r.causal || '', r.ejecutor || '', r.estadoFinal || '', r.observacion || '', r.archivoUrl || '', r.archivoNombre || '', r.registradoEl || '', r.actualizadoEl || '']));
+    return rows;
+  }
+  function correctivosToRows() {
+    const rows = [['CorrID', 'ID', 'N° Inventario', 'N° Serie', 'Equipo', 'Servicio', 'Unidad', 'Tipo de Evento', 'Fecha', 'Folio Solicitud', 'N° Envío', 'Folio Guía Despacho', 'Empresa', 'Ejecutor', 'Descripción', 'Estado Final del Equipo', 'Adjunto', 'Nombre Adjunto', 'Registrado El']];
+    state.correctivos.forEach(c => rows.push([c.corrId || '', c.id || '', c.inv || '', c.serie || '', c.equipo || '', c.servicio || '', c.unidad || '', c.tipoEvento || '', sd(c.fecha), c.folioSolicitud || '', c.nEnvio || '', c.folioGuia || '', c.empresa || '', c.ejecutor || '', c.descripcion || '', c.estadoFinal || '', c.archivoUrl || '', c.archivoNombre || '', c.registradoEl || '']));
+    return rows;
+  }
+  function pendientesToRows() {
+    const rows = [['PendID', 'ID', 'N° Inventario', 'N° Serie', 'Equipo', 'Servicio', 'Unidad', 'Tipo', 'Fecha de Compromiso', 'Responsable Administrativo', 'Responsable de Ejecución', 'Observación', 'Estado', 'Adjunto', 'Nombre Adjunto', 'Registrado El', 'Resuelto El']];
+    state.pendientes.forEach(p => rows.push([p.pendId || '', p.id || '', p.inv || '', p.serie || '', p.equipo || '', p.servicio || '', p.unidad || '', p.tipo || '', sd(p.fechaCompromiso), p.respAdministrativo || '', p.respEjecucion || '', p.observacion || '', p.estado || 'Abierto', p.archivoUrl || '', p.archivoNombre || '', p.registradoEl || '', p.resueltoEl || '']));
+    return rows;
+  }
+  function tareasToRows() {
+    const rows = [['PendID', 'ID', 'Tarea', 'Hecha']];
+    state.pendientes.forEach(p => (p.tareas || []).forEach(t => rows.push([p.pendId || '', p.id || '', t.texto || '', t.hecha ? 'Sí' : 'No'])));
+    return rows;
+  }
+  function bitacoraToRows() {
+    const rows = [['PendID', 'ID', 'Fecha', 'Texto']];
+    state.pendientes.forEach(p => (p.actualizaciones || []).forEach(a => rows.push([p.pendId || '', p.id || '', sd(a.fecha), a.texto || ''])));
+    return rows;
+  }
+  // Paquete de datos: pequeño, viaja EN CADA guardado (no reescribe los reportes).
+  function buildDatosPayload() {
+    ensureIds();
+    return {
+      RegistrosMP: {
+        rows: registrosToRows(),
+        validations: [
+          { header: 'Resultado (R)', values: MP.RESULTADO_OPCIONES },
+          { header: 'Ejecutor', values: MP.EJECUTORES },
+          { header: 'Estado Final del Equipo', values: MP.ESTADO_FINAL_OPCIONES }
+        ],
+        colors: [{ header: 'Estado Final del Equipo', rules: [
+          { value: 'Operativo', color: '#C6EFCE' }, { value: 'No operativo', color: '#FFC7CE' }, { value: 'En servicio técnico', color: '#FFE0B2' }
+        ] }]
+      },
+      Correctivos: { rows: correctivosToRows(), validations: correctivosExtras().validations, colors: correctivosExtras().colors },
+      Pendientes: { rows: pendientesToRows(), validations: pendientesExtras().validations, colors: pendientesExtras().colors },
+      Tareas: { rows: tareasToRows() },
+      Bitacora: { rows: bitacoraToRows() }
+    };
+  }
+
+  // Envío COMPLETO ("Enviar / actualizar"): regenera los REPORTES (Eventos/
+  // Catalogos/Resumen) + inventario + hojas de datos. Las hojas Correctivos/
+  // Pendientes/Tareas/Bitacora de la planilla son las de DATOS (con IDs).
   function buildSheetsPayload() {
     const wb = MPOUT.buildOutputWorkbook(ExcelJS, MP, consolidatedEvents(), { equipos: state.equipos.length, correctivos: state.correctivos, pendientes: decoratedPendientes(), archivos: state.archivos });
+    const REPORTES = ['Eventos', 'Catalogos', 'Resumen'];
     return {
-      // La hoja "Archivos" la gestiona el propio Apps Script al subir cada
-      // archivo; no la sobrescribimos en el envío masivo para no perder enlaces.
-      sheets: wb.worksheets.filter(ws => ws.name !== 'Archivos').map(ws => {
+      sheets: wb.worksheets.filter(ws => REPORTES.indexOf(ws.name) !== -1).map(ws => {
         const o = { name: ws.name, rows: sheetToRows(ws) };
         if (ws.name === 'Eventos') Object.assign(o, eventosExtras());
-        if (ws.name === 'Correctivos') Object.assign(o, correctivosExtras());
-        if (ws.name === 'Pendientes') Object.assign(o, pendientesExtras());
         return o;
       }),
-      data: serializeState(),   // snapshot para poder LEER al reabrir
+      datos: buildDatosPayload(),
+      data: serializeState(),   // snapshot heredado (el servidor lo omite si supera el límite de la celda)
       equipos: state.equipos.length ? equiposToRows() : null   // inventario, para auto-cargar al abrir
     };
   }
@@ -2564,22 +2785,28 @@ function json(obj) {
     }
   }
 
+  // silent=true: envío LIVIANO (solo hojas de datos, ~cientos de celdas) tras cada
+  // guardado. silent=false ("Enviar / actualizar"): envío completo, regenera reportes.
   async function exportToSheets(silent) {
     if (!sheetsReady()) { if (!silent) showInline($('#sheetsStatus'), 'err', 'Primero pega y guarda la URL de la app web.'); return; }
-    if (!state.equipos.length) { if (!silent) showInline($('#sheetsStatus'), 'err', 'Carga primero el archivo de programación.'); return; }
+    if (!silent && !state.equipos.length) { showInline($('#sheetsStatus'), 'err', 'Carga primero el archivo de programación.'); return; }
     const btn = $('#sheetsSendAll'); const orig = btn.textContent; btn.disabled = true; btn.textContent = 'Enviando…';
     try {
-      const payload = buildSheetsPayload();
+      const payload = silent ? { datos: buildDatosPayload(), data: serializeState() } : buildSheetsPayload();
       const j = await postSheets(payload);
-      const names = payload.sheets.map(s => s.name).join(', ');
-      showInline($('#sheetsStatus'), 'ok', j.unconfirmed
-        ? '✓ Enviado a Google Sheets (sin confirmación; revisa la planilla). Hojas: ' + names + '.'
-        : '✓ Hojas actualizadas: ' + (j.sheets ? j.sheets.join(', ') : names) + '.');
+      state.lastSync = new Date();
+      if (!silent) {
+        const names = payload.sheets.map(s => s.name).join(', ');
+        showInline($('#sheetsStatus'), 'ok', j.unconfirmed
+          ? '✓ Enviado a Google Sheets (sin confirmación; revisa la planilla). Hojas: ' + names + '.'
+          : '✓ Hojas actualizadas: ' + (j.sheets ? j.sheets.join(', ') : names) + '.');
+      }
+      if (panelActive('inicio')) renderInicio();
     } catch (e) {
-      showInline($('#sheetsStatus'), 'err', '❌ ' + (e.message || e));
+      if (!silent) showInline($('#sheetsStatus'), 'err', '❌ ' + (e.message || e));
     } finally { btn.textContent = orig; btn.disabled = false; }
   }
-  function autoExportSheets() { if (sheetsAuto() && sheetsReady() && state.equipos.length) exportToSheets(true); }
+  function autoExportSheets() { if (sheetsAuto() && sheetsReady()) exportToSheets(true); }
 
   // Servidor (Code.gs) desactualizado: revela la sección con el Code.gs y el
   // botón "Copiar script" (oculta en modo Apps Script) para poder actualizarlo.
@@ -2626,6 +2853,83 @@ function json(obj) {
       const je = JSON.parse(await res.text()); return je && je.equipos ? je.equipos : null;
     } catch (e) { return null; }
   }
+  // ---- Restauración v2: desde las hojas de DATOS normalizadas -------------
+  function esquemaV2(tablas) {
+    const g = tablas && tablas.RegistrosMP;
+    return Array.isArray(g) && g.length >= 1 && String((g[0] || [])[0]).trim() === 'RegID';
+  }
+  function registrosFromTabla(grid) {
+    const out = [];
+    rowsToObjs(grid).forEach(o => {
+      const regId = sid(o['RegID']); if (!regId) return;
+      const id = sid(o['ID']);
+      const nMes = parseInt(sid(o['N° Mes']), 10);
+      const mi = (nMes >= 1 && nMes <= 12) ? nMes - 1 : 0;
+      let eq = state.equipos.find(q => String(q.id) === id);
+      if (!eq) eq = { id: id, familia: '', carpeta: '', inv: sid(o['N° Inventario']), equipo: o['Equipo'] || '', servicio: '', unidad: '', ubicacion: '', procedencia: '', marca: '', modelo: '', serie: sid(o['N° Serie']), anio: '', vur: '', clasif: '', enubaja: '', observacion: '', frecuencia: '', prog: [], res: [] };
+      const r = MP.buildRegistro(eq, mi, {
+        fecha: asDate(o['Fecha de Ejecución']) || '',
+        resultado: sid(o['Resultado (R)']),
+        observacion: o['Observación'] || '',
+        ejecutor: o['Ejecutor'] || '',
+        estadoFinal: o['Estado Final del Equipo'] || ''
+      });
+      const pHoja = sid(o['Programa (P)']);
+      if (pHoja) { r.programa = pHoja; r.tipoPrograma = MP.PROG[pHoja.toUpperCase()] || pHoja; }
+      r.regId = regId;
+      r.registradoEl = o['Registrado El'] ? String(o['Registrado El']) : '';
+      r.actualizadoEl = o['Actualizado El'] ? String(o['Actualizado El']) : '';
+      if (o['Adjunto']) { r.archivoUrl = String(o['Adjunto']); r.archivoNombre = String(o['Nombre Adjunto'] || ''); }
+      out.push(r);
+    });
+    return out;
+  }
+  function correctivosFromTablaV2(grid) {
+    return rowsToObjs(grid).map(o => ({
+      corrId: sid(o['CorrID']) || uid('C'),
+      id: sid(o['ID']), inv: sid(o['N° Inventario']), serie: sid(o['N° Serie']), equipo: o['Equipo'] || '',
+      servicio: o['Servicio'] || '', unidad: o['Unidad'] || '', tipoEvento: o['Tipo de Evento'] || '', fecha: asDate(o['Fecha']),
+      folioSolicitud: sid(o['Folio Solicitud']), nEnvio: sid(o['N° Envío']), folioGuia: sid(o['Folio Guía Despacho']),
+      empresa: o['Empresa'] || '', ejecutor: o['Ejecutor'] || '', descripcion: o['Descripción'] || '', estadoFinal: o['Estado Final del Equipo'] || '',
+      archivoUrl: o['Adjunto'] ? String(o['Adjunto']) : '', archivoNombre: o['Nombre Adjunto'] ? String(o['Nombre Adjunto']) : '',
+      registradoEl: o['Registrado El'] ? String(o['Registrado El']) : ''
+    })).filter(c => c.id || c.equipo);
+  }
+  function pendientesFromTablaV2(tablas) {
+    const pend = rowsToObjs(tablas.Pendientes).map(o => ({
+      pendId: sid(o['PendID']) || uid('P'),
+      id: sid(o['ID']), inv: sid(o['N° Inventario']), serie: sid(o['N° Serie']), equipo: o['Equipo'] || '',
+      servicio: o['Servicio'] || '', unidad: o['Unidad'] || '', tipo: o['Tipo'] || '', fechaCompromiso: asDate(o['Fecha de Compromiso']),
+      respAdministrativo: o['Responsable Administrativo'] || '', respEjecucion: o['Responsable de Ejecución'] || '',
+      observacion: o['Observación'] || '', estado: o['Estado'] || 'Abierto',
+      archivoUrl: o['Adjunto'] ? String(o['Adjunto']) : '', archivoNombre: o['Nombre Adjunto'] ? String(o['Nombre Adjunto']) : '',
+      registradoEl: o['Registrado El'] ? String(o['Registrado El']) : '', resueltoEl: o['Resuelto El'] ? String(o['Resuelto El']) : '',
+      tareas: [], actualizaciones: []
+    })).filter(p => p.id || p.equipo);
+    // Tareas y bitácora por PendID (corrige la pérdida con varios pendientes por equipo)
+    const tByPend = {}, bByPend = {};
+    rowsToObjs(tablas.Tareas).forEach(o => { const k = sid(o['PendID']); if (!k) return; (tByPend[k] = tByPend[k] || []).push({ texto: o['Tarea'] || '', hecha: /^s[ií]$/i.test(String(o['Hecha']).trim()) }); });
+    rowsToObjs(tablas.Bitacora).forEach(o => { const k = sid(o['PendID']); if (!k) return; (bByPend[k] = bByPend[k] || []).push({ fecha: asDate(o['Fecha']), texto: o['Texto'] || o['Actualización'] || '' }); });
+    pend.forEach(p => { p.tareas = tByPend[p.pendId] || []; p.actualizaciones = bByPend[p.pendId] || []; });
+    return pend;
+  }
+  function restoreFromDatos(tablas) {
+    try {
+      state.registros = registrosFromTabla(tablas.RegistrosMP);
+      state.correctivos = correctivosFromTablaV2(tablas.Correctivos || []);
+      state.pendientes = pendientesFromTablaV2(tablas);
+      return true;
+    } catch (e) { return false; }
+  }
+  // Render común tras restaurar el estado (cualquier esquema)
+  function afterRestoreRender() {
+    saveRegistros(); saveCorrectivos(); savePendientes();
+    renderRegistry(); renderCorrectivos(); renderPendientes();
+    if (state.events.length) { renderPreview(); renderDiscrepancias(); }
+    if (state.selDetalleEq) renderDetalle(state.selDetalleEq);
+    revealRegistrarIfData(); touch();
+  }
+
   // Lee de Google Sheets el snapshot de datos y lo carga en la app
   async function pullFromSheets(silent) {
     if (!sheetsReady()) { if (!silent) showInline($('#sheetsStatus'), 'err', 'Primero pega y guarda la URL de la app web.'); return; }
@@ -2660,14 +2964,21 @@ function json(obj) {
         if (grid) { const eqs = equiposFromRows(grid); if (eqs.length) { applyEquipos(eqs); equiposCargados = eqs.length; } }
       }
       const eqMsg = equiposCargados ? equiposCargados + ' equipos, ' : '';
+      state.lastSync = new Date();
+      // 1) Esquema v2: restaurar desde las hojas de DATOS (sin pérdidas, sin JSON)
+      if (esquemaV2(j.tablas) && restoreFromDatos(j.tablas)) {
+        afterRestoreRender();
+        showInline($('#sheetsStatus'), 'ok', '✓ Datos traídos de Google Sheets: ' + eqMsg + state.registros.length +
+          ' mant., ' + state.correctivos.length + ' corr., ' + state.pendientes.length + ' pend.' +
+          (state.archivos.length ? ', ' + state.archivos.length + ' archivo(s).' : ''));
+        return;
+      }
+      // 2) Esquema heredado: snapshot JSON (_datos)
       let obj = null;
       if (j.data) { try { obj = (typeof j.data === 'string') ? JSON.parse(j.data) : j.data; } catch (_) { obj = null; } }
       if (obj && restoreState(obj)) {
-        saveRegistros(); saveCorrectivos(); savePendientes();
-        renderRegistry(); renderCorrectivos(); renderPendientes();
-        if (state.events.length) { renderPreview(); renderDiscrepancias(); }
-        if (state.selDetalleEq) renderDetalle(state.selDetalleEq);
-        revealRegistrarIfData(); touch();
+        ensureIds();
+        afterRestoreRender();
         showInline($('#sheetsStatus'), 'ok', '✓ Datos traídos de Google Sheets: ' + eqMsg + state.registros.length +
           ' mant., ' + state.correctivos.length + ' corr., ' + state.pendientes.length + ' pend.' +
           (state.archivos.length ? ', ' + state.archivos.length + ' archivo(s).' : ''));
@@ -3136,7 +3447,9 @@ function json(obj) {
   function setActivePanel(panelId) { document.querySelectorAll('.tabpanel').forEach(p => p.classList.toggle('active', p.id === panelId)); }
   function goTab(id) {
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
+    document.querySelectorAll('#bottomBar button').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
     setActivePanel('tab-' + id);
+    if (id === 'inicio') renderInicio();
     if (id === 'resumen') renderResumen();
     if (id === 'inventario') renderInventario();
     try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { }
@@ -3153,8 +3466,88 @@ function json(obj) {
   // Re-render de las vistas derivadas tras cualquier cambio de datos
   function touch() {
     renderSidebarCounts();
+    if (panelActive('inicio')) renderInicio();
     if (panelActive('inventario')) renderInventario();
     if (panelActive('resumen')) renderResumen();
+  }
+
+  // ===== Pantalla Inicio (panel de indicadores) ===========================
+  function renderInicio() {
+    const el = $('#inicioContent'); if (!el) return;
+    const hasData = state.equipos.length || state.registros.length || state.correctivos.length || state.pendientes.length;
+    if (!hasData) {
+      el.innerHTML = '<div class="card home-empty"><div class="he-ico">🩺</div>' +
+        '<h3>Bienvenido a Gestión MP 2026</h3>' +
+        '<p class="muted">Importa la Programación MP 2026 para comenzar, o conecta Google Sheets para traer lo ya guardado.</p>' +
+        '<div class="actions" style="justify-content:center;margin-top:10px">' +
+        '<button id="homeImport" class="btn btn-accent" type="button">📂 Importar programación</button>' +
+        '<button id="homeSheets" class="btn btn-ghost" type="button">☁️ Google Sheets</button></div></div>';
+      const bi = $('#homeImport'); if (bi) bi.addEventListener('click', () => goTab('cargar'));
+      const bs = $('#homeSheets'); if (bs) bs.addEventListener('click', () => goTab('sheets'));
+      return;
+    }
+    const now = new Date(); const mi = now.getMonth();
+    const m = state.events.length ? monthlyAgg()[mi] : { prog: [], real: [], reprog: [], pend: [], otras: [] };
+    const cumpl = m.prog.length ? Math.round(100 * m.real.length / m.prog.length) : 0;
+    const kpis = [
+      ['Programadas', m.prog.length], ['Realizadas', m.real.length],
+      ['% Cumplimiento', cumpl + '%'], ['Reprogramadas', m.reprog.length], ['Pendientes del mes', m.pend.length]
+    ].map(k => '<div class="stat"><div class="n">' + k[1] + '</div><div class="l">' + esc(k[0]) + '</div></div>').join('');
+    // Alertas
+    const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+    const vencidos = state.pendientes.filter(p => p.estado !== 'Resuelto' && p.fechaCompromiso instanceof Date && p.fechaCompromiso < t0).length;
+    let noOp = 0, st = 0;
+    if (state.equipos.length) {
+      const cats = equipoCatMap();
+      state.equipos.forEach(eq => { const c = cats[eq.id]; if (c === 'No operativo') noOp++; else if (c === 'En servicio técnico') st++; });
+    }
+    const chips = [];
+    if (vencidos) chips.push('<button class="alertchip a-err" type="button" data-go="pendientes"><span class="n">📌</span>' + vencidos + ' pendiente(s) vencido(s)</button>');
+    if (noOp) chips.push('<button class="alertchip a-err" type="button" data-go="inv-noop"><span class="n">🔴</span>' + noOp + ' equipo(s) no operativo(s)</button>');
+    if (st) chips.push('<button class="alertchip a-st" type="button" data-go="inv-st"><span class="n">🟠</span>' + st + ' en servicio técnico</button>');
+    if (!chips.length) chips.push('<span class="alertchip a-ok">✓ Sin alertas: todo al día</span>');
+    // Sapo del día
+    const sapoList = pendPrioritized();
+    const sapo = sapoList.length ? sapoList[0] : null;
+    const sapoHtml = sapo
+      ? '<div class="sapocard" id="homeSapo">🐸 <b>El sapo de hoy</b> — hazlo primero<div style="margin-top:6px"><b style="color:var(--teal-d)">' +
+        esc(sapo.p.equipo) + '</b> (ID ' + esc(sapo.p.id) + ') · 📅 ' + esc(fmtDate(sapo.p.fechaCompromiso)) + ' · ' + dueInfo(sapo.p.fechaCompromiso) + '</div></div>'
+      : '<div class="muted">No hay pendientes activos. 🎉</div>';
+    // Última actividad (5 eventos globales más recientes)
+    const acts = [];
+    state.registros.forEach(r => { if (r.fechaEjecucion instanceof Date) acts.push({ d: r.fechaEjecucion, t: 'Preventivo', x: (r.equipo || '') + ' — ' + (r.resultado || '') + ' (' + (r.mes || '') + ')', id: r.id }); });
+    state.correctivos.forEach(c => { if (c.fecha instanceof Date) acts.push({ d: c.fecha, t: 'Correctivo', x: (c.equipo || '') + ' — ' + (c.tipoEvento || ''), id: c.id }); });
+    state.pendientes.forEach(p => { if (p.fechaCompromiso instanceof Date) acts.push({ d: p.fechaCompromiso, t: 'Pendiente', x: (p.equipo || '') + ' — ' + (p.tipo || '') + ' (' + (p.estado || 'Abierto') + ')', id: p.id }); });
+    acts.sort((a, b) => b.d - a.d);
+    const actHtml = acts.slice(0, 5).map((a, i) =>
+      '<div class="actitem" data-ai="' + i + '"><span class="ad">' + esc(fmtDate(a.d)) + '</span>' +
+      '<span class="at"><span class="pill" style="' + tipoEventoStyle(a.t) + '">' + esc(a.t) + '</span></span>' +
+      '<span class="ax">' + esc(a.x) + '</span></div>').join('') || '<div class="muted">Aún no hay actividad registrada.</div>';
+    const syncTxt = (GAS || sheetsUrl())
+      ? (state.lastSync ? '☁️ Sincronizado con Google Sheets · ' + fmtDate(state.lastSync) + ' ' + pad2(state.lastSync.getHours()) + ':' + pad2(state.lastSync.getMinutes()) : '☁️ Conectado a Google Sheets')
+      : '💾 Trabajo local (sin Google Sheets)';
+    el.innerHTML =
+      '<div class="card"><div class="actions" style="justify-content:space-between;align-items:center">' +
+        '<p class="section-title" style="margin:0">🏠 ' + esc(MP.MONTHS_FULL[mi]) + ' ' + now.getFullYear() + '</p>' +
+        '<span class="muted" style="font-size:12.5px">' + syncTxt + '</span></div>' +
+        '<div class="stats" style="margin-top:10px">' + kpis + '</div>' +
+        '<div class="home-sec-title" style="margin-top:6px">Alertas</div><div class="alertchips">' + chips.join('') + '</div></div>' +
+      '<div class="home-grid">' +
+        '<div class="card"><div class="home-sec-title">🐸 Foco de hoy</div>' + sapoHtml + '</div>' +
+        '<div class="card"><div class="home-sec-title">📜 Última actividad</div><div class="actlist">' + actHtml + '</div></div>' +
+      '</div>';
+    el.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => {
+      const g = b.dataset.go;
+      if (g === 'pendientes') goTab('pendientes');
+      else if (g === 'inv-noop') { goTab('inventario'); setInvFilter('No operativo'); }
+      else if (g === 'inv-st') { goTab('inventario'); setInvFilter('En servicio técnico'); }
+    }));
+    const hs = $('#homeSapo'); if (hs && sapo) hs.addEventListener('click', () => openGModal(state.pendientes[sapo.i]));
+    const emap = equipoMap();
+    el.querySelectorAll('.actitem[data-ai]').forEach(it => it.addEventListener('click', () => {
+      const a = acts[+it.dataset.ai]; const eq = emap.get(a.id) || state.equipos.find(q => String(q.id) === String(a.id));
+      if (eq) verDetalle(eq);
+    }));
   }
 
   // ===== Vista Equipo (inventario) ========================================
@@ -3553,7 +3946,9 @@ function json(obj) {
   }
 
   function openModal(eq) {
-    state.selEq = eq; state.selMonth = null;
+    state.selEq = eq; state.selMonth = null; state.editIdx = null;
+    $('#modalTitle').textContent = '🔧 Registrar mantención';
+    $('#mSave').textContent = 'Guardar registro';
     const pm = MP.programmedMonths(eq);
     $('#modalEq').innerHTML =
       '<b>' + esc(eq.equipo) + '</b> (ID ' + esc(eq.id) + ')<br>' +
@@ -3575,7 +3970,25 @@ function json(obj) {
     $('#modal').classList.add('show');
     setTimeout(() => $('#mFecha').focus(), 50);
   }
-  function closeModal() { $('#modal').classList.remove('show'); state.selEq = null; state.selMonth = null; }
+  function closeModal() { $('#modal').classList.remove('show'); state.selEq = null; state.selMonth = null; state.editIdx = null; }
+
+  // Editar una mantención ya registrada: reabre el modal prellenado y, al
+  // guardar, reemplaza el registro conservando su RegID (trazable).
+  function editRegistro(i) {
+    const r = state.registros[i]; if (!r) return;
+    const eq = state.equipos.find(q => String(q.id) === String(r.id));
+    if (!eq) { setStatus('⚠️ Para editar, primero carga el inventario (Importar programación o Traer de Google Sheets).', 'warn'); return; }
+    openModal(eq);
+    state.editIdx = i;
+    $('#modalTitle').textContent = '✏️ Editar mantención';
+    $('#mSave').textContent = 'Guardar cambios';
+    if (r.fechaEjecucion instanceof Date) { $('#mFecha').value = isoDate(r.fechaEjecucion); onDateChange(); }
+    $('#mResultado').value = r.resultado || '';
+    $('#mObs').value = r.observacion || '';
+    $('#mEjecutor').value = r.ejecutor || '';
+    $('#mEstadoFinal').value = r.estadoFinal || '';
+    updateEstadoFinal(); updateSave();
+  }
 
   function onDateChange() {
     $('#mTipo').style.display = 'none';
@@ -3636,14 +4049,27 @@ function json(obj) {
     const attFile = $('#mFile') ? $('#mFile').files[0] : null;   // capturar antes de cerrar
     const attDesc = $('#mFileDesc') ? $('#mFileDesc').value.trim() : '';
     const remVal = $('#mRecordatorio') ? $('#mRecordatorio').value : '';   // capturar antes de cerrar
-    state.registros.push(reg);
+    const editIdx = state.editIdx;
+    if (editIdx != null && state.registros[editIdx]) {
+      // Edición: conserva la identidad (RegID) y la fecha de registro original
+      const old = state.registros[editIdx];
+      reg.regId = old.regId || uid('R');
+      reg.registradoEl = old.registradoEl || nowIso();
+      reg.actualizadoEl = nowIso();
+      if (old.archivoUrl) { reg.archivoUrl = old.archivoUrl; reg.archivoNombre = old.archivoNombre; }
+      state.registros[editIdx] = reg;
+    } else {
+      reg.regId = uid('R');
+      reg.registradoEl = nowIso();
+      state.registros.push(reg);
+    }
     saveRegistros();   // persistir en el navegador
     closeModal();
     renderRegistry();
     renderPreview();   // reflejar el registro en la vista previa y en el Excel masivo
     renderDiscrepancias();
     if (state.selDetalleEq) renderDetalle(state.selDetalleEq);   // refrescar historial visible
-    let rmsg = '✅ Mantención registrada: <b>' + esc(eq.equipo) + '</b> — ' + esc(reg.mes) +
+    let rmsg = (editIdx != null ? '✏️ Mantención actualizada: <b>' : '✅ Mantención registrada: <b>') + esc(eq.equipo) + '</b> — ' + esc(reg.mes) +
       ' (' + esc(fmtDate(fecha)) + '). Quedará incluida al descargar el Excel.';
     let rkind = 'ok';
     if (remVal) {
@@ -3713,7 +4139,7 @@ function json(obj) {
     wrap.style.display = 'block';
     const term = ($('#registryFilter') ? $('#registryFilter').value : '').trim().toLowerCase();
     const eqf = scopeEqId();   // acotar al equipo seleccionado (o null = todos)
-    const cols = ['#', 'ID', 'Equipo', 'Serie / Inv', 'Mes', 'Fecha', 'Programa', 'Resultado', 'Ejecutor', 'Estado Final', 'Adjunto', ''];
+    const cols = ['#', 'ID', 'Equipo', 'Serie / Inv', 'Mes', 'Fecha', 'Programa', 'Resultado', 'Ejecutor', 'Estado Final', 'Adjunto', '', ''];
     const head = '<tr>' + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
     let shown = 0;
     const rows = state.registros.map((e, i) => {
@@ -3733,18 +4159,23 @@ function json(obj) {
         '<td>' + esc(e.ejecutor) + '</td>' +
         '<td>' + esc(e.estadoFinal) + '</td>' +
         '<td>' + adjCell(e) + '</td>' +
+        '<td><button class="btn btn-ghost btn-sm" title="Editar" data-edit="' + i + '" style="margin-top:0;padding:4px 9px">✏️</button></td>' +
         '<td><button class="btn btn-del" title="Eliminar" data-del="' + i + '">✕</button></td>' +
       '</tr>';
     }).join('');
     $('#registryCount').textContent = (eqf || term) ? (shown + ' / ' + state.registros.length) : state.registros.length;
     renderScopeNote('#registryScope', shown);
     const t = $('#registryTable');
-    t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="12" class="nomatch">' + (eqf ? 'Este equipo no tiene mantenciones registradas.' : 'Sin coincidencias para el filtro.') + '</td></tr>');
+    t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="13" class="nomatch">' + (eqf ? 'Este equipo no tiene mantenciones registradas.' : 'Sin coincidencias para el filtro.') + '</td></tr>');
+    t.querySelectorAll('button[data-edit]').forEach(b =>
+      b.addEventListener('click', () => editRegistro(+b.dataset.edit)));
     t.querySelectorAll('button[data-del]').forEach(b =>
       b.addEventListener('click', () => {
+        if (!confirm('¿Eliminar esta mantención registrada? Esta acción no se puede deshacer.')) return;
         state.registros.splice(+b.dataset.del, 1);
         saveRegistros(); renderRegistry(); renderPreview(); renderDiscrepancias();
         if (state.selDetalleEq) renderDetalle(state.selDetalleEq);
+        autoExportSheets();
       }));
   }
 
@@ -3774,9 +4205,11 @@ function json(obj) {
     t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="12" class="nomatch">' + (eqf ? 'Este equipo no tiene eventos correctivos.' : 'Sin coincidencias para el filtro.') + '</td></tr>');
     t.querySelectorAll('button[data-del]').forEach(b =>
       b.addEventListener('click', () => {
+        if (!confirm('¿Eliminar este evento correctivo? Esta acción no se puede deshacer.')) return;
         state.correctivos.splice(+b.dataset.del, 1);
         saveCorrectivos(); renderCorrectivos();
         if (state.selDetalleEq) renderDetalle(state.selDetalleEq);
+        autoExportSheets();
       }));
     touch();
   }
@@ -3864,6 +4297,8 @@ function json(obj) {
     const attFile = $('#cFile') ? $('#cFile').files[0] : null;
     const attDesc = $('#cFileDesc') ? $('#cFileDesc').value.trim() : '';
     const remVal = $('#cRecordatorio') ? $('#cRecordatorio').value : '';   // capturar antes de cerrar
+    corr.corrId = uid('C');
+    corr.registradoEl = nowIso();
     state.correctivos.push(corr);
     saveCorrectivos();
     closeCModal();
@@ -4045,9 +4480,11 @@ function json(obj) {
       b.addEventListener('click', () => openGModal(state.pendientes[+b.dataset.gest])));
     t.querySelectorAll('button[data-del]').forEach(b =>
       b.addEventListener('click', () => {
+        if (!confirm('¿Eliminar este pendiente (con sus tareas y bitácora)? Esta acción no se puede deshacer.')) return;
         state.pendientes.splice(+b.dataset.del, 1);
         savePendientes(); renderPendientes();
         if (state.selDetalleEq) renderDetalle(state.selDetalleEq);
+        autoExportSheets();
       }));
     touch();
   }
@@ -4087,6 +4524,8 @@ function json(obj) {
     });
     const attFile = $('#pFile') ? $('#pFile').files[0] : null;
     const attDesc = $('#pFileDesc') ? $('#pFileDesc').value.trim() : '';
+    pend.pendId = uid('P');
+    pend.registradoEl = nowIso();
     state.pendientes.push(pend);
     savePendientes();
     closePModal();
@@ -4289,6 +4728,38 @@ function json(obj) {
   // ---- Conexión de eventos de UI -----------------------------------------
   // Navegación del panel lateral
   document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => goTab(btn.dataset.tab)));
+  // Barra inferior (móvil)
+  document.querySelectorAll('#bottomBar button').forEach(btn => btn.addEventListener('click', () => goTab(btn.dataset.tab)));
+  // Buscador global de equipos (sidebar): visible desde cualquier vista
+  function hideGlobalSuggest() { const s = $('#globalSuggest'); s.classList.remove('show'); s.innerHTML = ''; }
+  function renderGlobalSuggest() {
+    const q = $('#globalSearch').value;
+    if (!q.trim() || !state.equipos.length) { hideGlobalSuggest(); return; }
+    const results = MP.findEquipos(state.equipos, q).slice(0, 8);
+    const s = $('#globalSuggest');
+    if (!results.length) { s.innerHTML = '<div class="sg-empty">Sin coincidencias.</div>'; s.classList.add('show'); return; }
+    s.innerHTML = results.map((e, i) =>
+      '<div class="sg-item" data-gi="' + i + '"><b>' + esc(e.equipo) + '</b>' +
+      '<div class="meta">Serie: ' + esc(e.serie || '—') + ' · Inv: ' + esc(e.inv || '—') + '</div></div>').join('');
+    s.classList.add('show');
+    s.querySelectorAll('.sg-item').forEach(it => it.addEventListener('mousedown', ev => {
+      ev.preventDefault();
+      $('#globalSearch').value = '';
+      hideGlobalSuggest();
+      verDetalle(results[+it.dataset.gi]);
+    }));
+  }
+  let gsTimer = null;
+  $('#globalSearch').addEventListener('input', () => { clearTimeout(gsTimer); gsTimer = setTimeout(renderGlobalSuggest, 120); });
+  $('#globalSearch').addEventListener('keydown', e => {
+    if (e.key === 'Escape') hideGlobalSuggest();
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      const r = MP.findEquipos(state.equipos, $('#globalSearch').value);
+      if (r.length) { $('#globalSearch').value = ''; hideGlobalSuggest(); verDetalle(r[0]); }
+    }
+  });
+  document.addEventListener('click', e => { if (!$('#sideSearch').contains(e.target)) hideGlobalSuggest(); });
   // Filtro por columna (popover estilo Excel) de la vista Equipo
   $('#cfSearch').addEventListener('input', () => renderCfList($('#cfSearch').value));
   $('#cfAll').addEventListener('change', () => {
@@ -4430,7 +4901,11 @@ function json(obj) {
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#pmodal').classList.contains('show')) closePModal(); });
   $('#pendientesFilter').addEventListener('input', renderPendientes);
   // Gestión de pendientes
-  $('#gEstado').addEventListener('change', () => { if (state.gPend) { state.gPend.estado = $('#gEstado').value; gPersist(); renderGModal(); } });
+  $('#gEstado').addEventListener('change', () => { if (state.gPend) {
+    state.gPend.estado = $('#gEstado').value;
+    state.gPend.resueltoEl = (state.gPend.estado === 'Resuelto') ? nowIso() : '';   // trazabilidad del cierre
+    gPersist(); renderGModal();
+  } });
   $('#gTareaAdd').addEventListener('click', gAddTarea);
   $('#gTareaTexto').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); gAddTarea(); } });
   $('#gActAdd').addEventListener('click', gAddAct);
@@ -4487,9 +4962,11 @@ function json(obj) {
   state.correctivos = loadCorrectivos();
   state.pendientes = loadPendientes();
   state.archivos = loadArchivos();
+  ensureIds();   // migra registros antiguos al esquema con IDs estables
   renderCorrectivos();
   renderPendientes();
   renderSidebarCounts();
+  renderInicio();
   revealRegistrarIfData();
   if (state.registros.length || state.correctivos.length || state.pendientes.length) {
     setStatus('ℹ️ Tienes <b>' + state.registros.length + '</b> mantención(es), <b>' + state.correctivos.length +

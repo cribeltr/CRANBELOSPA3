@@ -1,10 +1,16 @@
 /****************************************************************************
- *  ===>  VERSIÓN: v10-equipos-paginado  <===  (debe coincidir con "Probar conexión")
+ *  ===>  VERSIÓN: v11-datos-normalizados  <===  (debe coincidir con "Probar conexión")
  *  Puente Google Sheets — Programación MP 2026
  *  --------------------------------------------------------------------------
- *  Crea/actualiza en tu planilla las MISMAS hojas que el Excel:
- *  "Eventos", "Catalogos" y "Resumen", con desplegables (Resultado, Estado
- *  Final, Ejecutor) y coloreado por Estado en la hoja Eventos.
+ *  ESTRUCTURA DE LA PLANILLA (v11):
+ *   · CAPA DE DATOS (fuente de verdad, se actualiza EN CADA guardado, hojas pequeñas):
+ *       Equipos · RegistrosMP · Correctivos · Pendientes · Tareas · Bitacora · Archivos
+ *       (cada fila lleva ID estable: RegID / CorrID / PendID + fecha de registro)
+ *   · CAPA DE REPORTES (se regeneran con "Enviar / actualizar"):
+ *       Eventos · Catalogos · Resumen   (formato del hospital, intacto)
+ *   · _meta (oculta): versión del esquema y último envío.
+ *   · _datos (oculta, transición): snapshot JSON heredado. Se escribe SOLO si no
+ *     supera el límite de 50.000 caracteres por celda; la fuente real son las hojas.
  *
  *  Cómo usarlo (configuración única):
  *   1. Crea (o abre) una Google Sheet.
@@ -17,23 +23,16 @@
  *   5. Copia la "URL de la aplicación web" (termina en /exec) y pégala en la
  *      app (sección "Guardar en Google Sheets").
  *
- *  Cada hoja se REEMPLAZA con el contenido enviado (las demás hojas no se tocan).
- *
  *  -- OPCIONAL: servir la app DESDE aquí (el link /exec abre el programa) --
  *   a. En el editor de Apps Script: "+" -> HTML -> nómbralo EXACTAMENTE "index".
- *   b. Pega dentro TODO el contenido de "index-appsscript.html" (NO el index.html
- *      grande: dentro de Apps Script el ExcelJS incrustado no se ejecuta bien;
- *      la versión -appsscript lo carga por CDN y sí funciona).
- *   c. Implementar -> Nueva versión. La URL /exec abre la app ya conectada a
- *      esta planilla (escribe y lee con google.script.run, sin pegar la URL).
- *   Nota: dentro de Apps Script el botón "Descargar Excel" puede quedar
- *   bloqueado por el iframe protegido; para descargar usa la app alojada aparte.
+ *   b. Pega dentro TODO el contenido de "index-appsscript.html".
+ *   c. Implementar -> Nueva versión. La URL /exec abre la app ya conectada.
  *
- *  -- Subir archivos a Drive (opcional) --
- *   La app puede subir archivos del equipo a tu Drive: crea la carpeta
- *   "MP 2026 - Archivos" con una subcarpeta por equipo y agrega el ENLACE a la
- *   hoja "Archivos". La PRIMERA vez pedirá un permiso adicional de Drive: vuelve
- *   a "Implementar -> Nueva versión" y autoriza cuando lo solicite.
+ *  -- Archivos en Drive --
+ *   Carpeta raíz "MP 2026 - Archivos" con una subcarpeta por equipo, "Descargas"
+ *   para los Excel generados y "Respaldos" con una copia semanal automática de
+ *   la planilla (se conservan las últimas 8). El nivel de compartición de los
+ *   archivos subidos se controla con COMPARTIR_ARCHIVOS (abajo).
  ****************************************************************************/
 
 function doPost(e) {
@@ -55,11 +54,13 @@ function appPush(body) {
   try { return writeAll(typeof body === 'string' ? JSON.parse(body) : body); }
   finally { lock.releaseLock(); }
 }
-var APP_VERSION = 'v10-equipos-paginado';   // para confirmar qué versión está publicada (Probar conexión)
+var APP_VERSION = 'v11-datos-normalizados';   // para confirmar qué versión está publicada (Probar conexión)
 function appPull() { return readAll(false); }   // sin equipos (evita el límite de tamaño de google.script.run)
-// Inventario completo (de _equipos o, si no existe, reconstruido desde Eventos).
+// Inventario completo: hoja "Equipos" (v11) o "_equipos" (heredada) o reconstruido desde Eventos.
 function allEquipos(ss) {
-  var es = ss.getSheetByName('_equipos');
+  var es = ss.getSheetByName('Equipos');
+  if (es && es.getLastRow() > 1) return sheetVals(ss, 'Equipos');
+  es = ss.getSheetByName('_equipos');
   return (es && es.getLastRow() > 1) ? sheetVals(ss, '_equipos') : equiposFromEventos(ss);
 }
 // Inventario POR PARTES (paginado) para no superar el límite de google.script.run.
@@ -126,18 +127,29 @@ function appSaveXlsx(body) {
   var blob = Utilities.newBlob(Utilities.base64Decode(p.dataBase64),
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', nombre);
   var file = folder.createFile(blob);
-  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+  compartir_(file);
   return { ok: true, name: nombre, url: file.getUrl(), download: 'https://drive.google.com/uc?export=download&id=' + file.getId() };
 }
 
-/* ------------------------- Subida de archivos a Drive -------------------------
- *  Crea (si no existe) la carpeta raíz "MP 2026 - Archivos" y, dentro, una
- *  subcarpeta por equipo. Guarda el archivo, lo comparte como "cualquiera con el
- *  enlace puede ver" y agrega una fila con el ENLACE a la hoja "Archivos".
- *  payload: { equipoId, equipo, inv, serie, servicio, categoria, descripcion, nombre, mime, dataBase64 }
- *  Requiere autorización de Drive (al implementar pedirá el permiso una vez).
+/* ------------------------- Archivos en Drive -------------------------------
+ *  Carpeta raíz + subcarpeta por equipo. Las carpetas YA existentes (nombre
+ *  antiguo "{id} - {equipo}…") se siguen usando; las nuevas se crean con el ID
+ *  con ceros ("ID 0049 · …") para que Drive las ordene naturalmente.
  * ----------------------------------------------------------------------------- */
 var ARCHIVOS_ROOT = 'MP 2026 - Archivos';
+
+// Nivel de compartición de los archivos subidos y Excel generados:
+//   'enlace'  = cualquiera con el enlace puede ver (como hasta ahora)
+//   'dominio' = solo cuentas del dominio (recomendado en Google Workspace)
+//   'privado' = no se comparte (solo el dueño y con quien comparta la carpeta)
+var COMPARTIR_ARCHIVOS = 'enlace';
+function compartir_(file) {
+  try {
+    if (COMPARTIR_ARCHIVOS === 'enlace') file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    else if (COMPARTIR_ARCHIVOS === 'dominio') file.setSharing(DriveApp.Access.DOMAIN_WITH_LINK, DriveApp.Permission.VIEW);
+    // 'privado': no se toca el permiso
+  } catch (e) {}
+}
 
 function getOrCreateFolder(parent, name) {
   var it = parent.getFoldersByName(name);
@@ -145,27 +157,33 @@ function getOrCreateFolder(parent, name) {
 }
 function sanitizeName(s) { return String(s == null ? '' : s).replace(/[\\/:*?"<>|]/g, '-').trim() || 'Equipo'; }
 
+// Carpeta del equipo: reutiliza la antigua si existe; si no, crea con ID acolchado.
+function carpetaDeEquipo_(root, p) {
+  var sufijo = (p.inv ? ' (Inv ' + p.inv + ')' : (p.serie ? ' (Serie ' + p.serie + ')' : ''));
+  var antigua = sanitizeName((p.equipoId ? p.equipoId + ' - ' : '') + (p.equipo || 'Equipo') + sufijo);
+  var it = root.getFoldersByName(antigua);
+  if (it.hasNext()) return it.next();
+  var idPad = p.equipoId ? ('ID ' + ('0000' + String(p.equipoId)).slice(-4) + ' · ') : '';
+  return getOrCreateFolder(root, sanitizeName(idPad + (p.equipo || 'Equipo') + sufijo));
+}
+
 function uploadArchivo(p) {
   if (!p || !p.dataBase64) return { ok: false, error: 'Sin datos de archivo.' };
   var root = getOrCreateFolder(DriveApp.getRootFolder(), ARCHIVOS_ROOT);
-  var carpetaEquipo = sanitizeName(
-    (p.equipoId ? p.equipoId + ' - ' : '') + (p.equipo || 'Equipo') +
-    (p.inv ? ' (Inv ' + p.inv + ')' : (p.serie ? ' (Serie ' + p.serie + ')' : ''))
-  );
-  var folder = getOrCreateFolder(root, carpetaEquipo);
+  var folder = carpetaDeEquipo_(root, p);
 
   var nombre = sanitizeName(p.nombre || 'archivo');
   var bytes = Utilities.base64Decode(p.dataBase64);
   var blob = Utilities.newBlob(bytes, p.mime || 'application/octet-stream', nombre);
   var file = folder.createFile(blob);
-  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e2) {}
+  compartir_(file);
   var url = file.getUrl();
 
   // Además del archivo, generar un .txt con la descripción y el MISMO nombre base.
   if (p.descripcion) {
     var txtName = nombre.replace(/\.[^.]+$/, '') + '.txt';
     var txtFile = folder.createFile(Utilities.newBlob(p.descripcion, 'text/plain', txtName));
-    try { txtFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e4) {}
+    compartir_(txtFile);
   }
 
   // Registrar el enlace en la hoja "Archivos"
@@ -200,6 +218,14 @@ function uploadArchivo(p) {
   return { ok: true, url: url, name: nombre, folder: folder.getUrl(), categoria: p.categoria || '', descripcion: p.descripcion || '', fecha: fecha };
 }
 
+/* ------------------------------ Escritura ---------------------------------
+ *  body.sheets  -> hojas de REPORTE (Eventos/Catalogos/Resumen). Solo llegan
+ *                  con "Enviar / actualizar" (regeneración a demanda).
+ *  body.datos   -> hojas de DATOS (RegistrosMP/Correctivos/Pendientes/Tareas/
+ *                  Bitacora). Llegan EN CADA guardado: son pequeñas.
+ *  body.equipos -> hoja "Equipos" (inventario; llega al importar o enviar todo).
+ *  body.data    -> snapshot JSON heredado (_datos). Se escribe solo si cabe.
+ * --------------------------------------------------------------------------- */
 function writeAll(body) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var written = [];
@@ -226,16 +252,29 @@ function writeAll(body) {
       written.push(name);
     });
 
-    // Snapshot de datos de la app (para poder LEERLOS al reabrir el programa)
-    if (body.data !== undefined && body.data !== null) {
-      var ds = ss.getSheetByName('_datos') || ss.insertSheet('_datos');
-      ds.getRange(1, 1).setValue(typeof body.data === 'string' ? body.data : JSON.stringify(body.data));
-      try { ds.hideSheet(); } catch (e2) {}
+    // Hojas de DATOS normalizadas (v11): fuente de verdad, pequeñas, como texto.
+    if (body.datos) {
+      for (var dn in body.datos) {
+        var dspec = body.datos[dn] || {};
+        writeDataSheet_(ss, dn, dspec.rows || [], dspec.validations, dspec.colors);
+        written.push(dn);
+      }
     }
 
-    // Inventario de equipos (hoja oculta) para auto-cargar al abrir el link
+    // Snapshot heredado (_datos): SOLO si no supera el límite de 50.000 caracteres
+    // por celda (sobre ese tamaño setValue falla; la fuente real son las hojas de datos).
+    if (body.data !== undefined && body.data !== null) {
+      var js = (typeof body.data === 'string') ? body.data : JSON.stringify(body.data);
+      if (js.length < 45000) {
+        var ds = ss.getSheetByName('_datos') || ss.insertSheet('_datos');
+        ds.getRange(1, 1).setValue(js);
+        try { ds.hideSheet(); } catch (e2) {}
+      }
+    }
+
+    // Inventario de equipos (hoja "Equipos", visible) para auto-cargar al abrir el link
     if (body.equipos && body.equipos.length) {
-      var es = ss.getSheetByName('_equipos') || ss.insertSheet('_equipos');
+      var es = ss.getSheetByName('Equipos') || ss.insertSheet('Equipos');
       es.clear();
       var ec = body.equipos[0].length;
       body.equipos.forEach(function (r) { while (r.length < ec) r.push(''); });
@@ -243,10 +282,74 @@ function writeAll(body) {
       rng.setNumberFormat('@');                 // texto: conserva ceros a la izquierda
       rng.setValues(body.equipos);
       es.setFrozenRows(1);
-      try { es.hideSheet(); } catch (e3) {}
+      try { es.showSheet(); } catch (e3) {}
     }
 
+    setMeta_(ss, body);
+    try { ensureRespaldoTrigger_(); } catch (e4) {}
+
     return { ok: true, sheets: written };
+}
+
+// Hoja de datos: todo como TEXTO (conserva ceros, fechas ISO legibles) + encabezado fijo.
+function writeDataSheet_(ss, name, rows, validations, colors) {
+  var sh = ss.getSheetByName(name) || ss.insertSheet(name);
+  sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).clearDataValidations();
+  sh.setConditionalFormatRules([]);
+  sh.clearContents();
+  if (!rows || !rows.length) return;
+  var maxc = 1;
+  rows.forEach(function (r) { if (r.length > maxc) maxc = r.length; });
+  rows.forEach(function (r) { while (r.length < maxc) r.push(''); });
+  var rng = sh.getRange(1, 1, rows.length, maxc);
+  rng.setNumberFormat('@');
+  rng.setValues(rows);
+  sh.setFrozenRows(1);
+  sh.getRange(1, 1, 1, maxc).setFontWeight('bold').setBackground('#15616d').setFontColor('#ffffff');
+  if (validations) applyValidations(sh, validations);
+  if (colors) applyColors(sh, colors);
+}
+
+// _meta: versión del esquema y trazas del último envío (hoja oculta clave/valor).
+function setMeta_(ss, body) {
+  try {
+    var sh = ss.getSheetByName('_meta') || ss.insertSheet('_meta');
+    var ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Santiago', 'yyyy-MM-dd HH:mm:ss');
+    var n = function (k) { var d = body.datos && body.datos[k]; return d && d.rows ? Math.max(0, d.rows.length - 1) : ''; };
+    var kv = [
+      ['Esquema', '2'],
+      ['Versión script', APP_VERSION],
+      ['Último envío', ahora],
+      ['Tipo de envío', body.sheets && body.sheets.length ? 'completo (reportes+datos)' : 'datos'],
+      ['RegistrosMP', n('RegistrosMP')], ['Correctivos', n('Correctivos')],
+      ['Pendientes', n('Pendientes')], ['Tareas', n('Tareas')], ['Bitacora', n('Bitacora')]
+    ];
+    sh.clearContents();
+    sh.getRange(1, 1, kv.length, 2).setValues(kv);
+    try { sh.hideSheet(); } catch (e) {}
+  } catch (e2) {}
+}
+
+/* ------------------------- Respaldo automático ------------------------------
+ *  Copia semanal de la planilla a "MP 2026 - Archivos/Respaldos" (conserva las
+ *  últimas 8). El disparador se crea solo, en el primer envío. También se puede
+ *  ejecutar a mano desde el editor: respaldoSemanal().
+ * ----------------------------------------------------------------------------- */
+function respaldoSemanal() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var file = DriveApp.getFileById(ss.getId());
+  var root = getOrCreateFolder(DriveApp.getRootFolder(), ARCHIVOS_ROOT);
+  var folder = getOrCreateFolder(root, 'Respaldos');
+  var fecha = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Santiago', 'yyyy-MM-dd');
+  file.makeCopy('Respaldo ' + fecha + ' · ' + ss.getName(), folder);
+  var it = folder.getFiles(); var arr = [];
+  while (it.hasNext()) arr.push(it.next());
+  arr.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); });
+  for (var i = 8; i < arr.length; i++) arr[i].setTrashed(true);
+}
+function ensureRespaldoTrigger_() {
+  var existe = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'respaldoSemanal'; });
+  if (!existe) ScriptApp.newTrigger('respaldoSemanal').timeBased().everyWeeks(1).onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(7).create();
 }
 
 // Columna (1-based) cuyo encabezado (fila 1) coincide con 'header'
@@ -326,6 +429,7 @@ function readAll(includeEquipos) {
   var out = {
     ok: true, ver: APP_VERSION, count: n, data: data,
     tablas: {
+      RegistrosMP: sheetVals(ss, 'RegistrosMP'),
       Pendientes: sheetVals(ss, 'Pendientes'),
       Correctivos: sheetVals(ss, 'Correctivos'),
       Tareas: sheetVals(ss, 'Tareas'),
