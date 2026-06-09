@@ -514,6 +514,11 @@
       <button id="download" class="btn btn-accent" type="button" disabled>⬇️ Descargar Excel (una fila por evento)</button>
       <span class="muted">Incluye hojas <b>Eventos</b>, <b>Catalogos</b> y <b>Resumen</b>, con desplegables de Resultado, Estado Final y Ejecutor. <b>Consolida</b> las mantenciones que registres en la fila del equipo y mes correspondiente.</span>
     </div>
+    <div class="actions" style="margin-top:8px">
+      <button id="downloadReg" class="btn btn-primary btn-sm" type="button" style="margin-top:0">⬇️ Descargar registro de mantenciones (Excel)</button>
+      <button id="clearReg" class="btn btn-ghost btn-sm" type="button">🗑️ Limpiar mantenciones registradas</button>
+      <span class="muted" style="font-size:12.5px">Las mantenciones que registras se guardan en este navegador (y en Google Sheets si está conectado); también se ven y editan en la ficha de cada equipo.</span>
+    </div>
   </div>
   </section>
 
@@ -538,19 +543,14 @@
     <div id="searchMsg" class="inline-msg"></div>
     <div id="equipoDetalle" style="display:none;margin-top:12px"></div>
 
-    <div id="registryWrap" style="display:none;margin-top:18px">
+    <div id="pendEquipoWrap" style="display:none;margin-top:18px">
       <div class="actions" style="justify-content:space-between">
-        <span class="section-title" style="font-size:14px">Mantenciones registradas: <span class="badge" id="registryCount">0</span></span>
-        <span style="display:flex;gap:8px">
-          <button id="downloadReg" class="btn btn-accent btn-sm" type="button">⬇️ Descargar registro (Excel)</button>
-          <button id="clearReg" class="btn btn-ghost btn-sm" type="button">🗑️ Limpiar</button>
-        </span>
+        <span class="section-title" style="font-size:14px">📌 Pendientes: <span class="badge" id="pendEquipoCount">0</span></span>
+        <span class="muted" style="font-size:12.5px">📅 agrega el pendiente a tu Google Calendar · ⚙️ gestiona estado y tareas</span>
       </div>
-      <p class="muted" style="margin:8px 0 0">Tus registros se guardan en este navegador y se mantienen aunque vuelvas a cargar el archivo.</p>
-      <input id="registryFilter" type="text" class="filter" autocomplete="off" placeholder="🔎 Filtrar por equipo, serie, inventario, mes, ejecutor, estado…" />
-      <div id="registryScope" class="scope-note"></div>
+      <div id="pendEquipoScope" class="scope-note"></div>
       <div class="tablewrap" style="margin-top:8px">
-        <table class="prev" id="registryTable"></table>
+        <table class="prev" id="pendEquipoTable"></table>
       </div>
     </div>
 
@@ -3822,11 +3822,12 @@ function json(obj) {
       ? '<div class="evrem">' + recordatorioLink('MP 2026 · ' + (e.equipo || 'Equipo') + ' — ' + it.evento, it.remDate,
           it.evento + ' · Equipo ' + (e.equipo || '') + ' (ID ' + (e.id || '') + ', Serie ' + (e.serie || '—') + ', Inv ' + (e.inv || '—') + ').', e.servicio || '') + '</div>'
       : '';
-    // Acciones del evento: editar (y gestionar, si es pendiente)
+    // Acciones del evento: editar / eliminar (y gestionar, si es pendiente)
     let acc = '';
     if (it.kind === 'prev' && e.regId) {
       const i = state.registros.findIndex(r => r.regId === e.regId);
-      if (i >= 0) acc = '<button class="btn btn-ghost btn-sm" type="button" data-evedit="reg:' + i + '" style="margin-top:0">✏️ Editar</button>';
+      if (i >= 0) acc = '<button class="btn btn-ghost btn-sm" type="button" data-evedit="reg:' + i + '" style="margin-top:0">✏️ Editar</button> ' +
+        '<button class="btn btn-ghost btn-sm" type="button" data-evdel="' + i + '" style="margin-top:0;color:var(--err)">🗑 Eliminar registro</button>';
     } else if (it.kind === 'corr') {
       const i = state.correctivos.indexOf(e);
       if (i >= 0) acc = '<button class="btn btn-ghost btn-sm" type="button" data-evedit="corr:' + i + '" style="margin-top:0">✏️ Editar</button>';
@@ -3994,6 +3995,15 @@ function json(obj) {
       }));
     $('#equipoDetalle').querySelectorAll('button[data-evgest]').forEach(b =>
       b.addEventListener('click', ev => { ev.stopPropagation(); openGModal(state.pendientes[+b.dataset.evgest]); }));
+    $('#equipoDetalle').querySelectorAll('button[data-evdel]').forEach(b =>
+      b.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if (!confirm('¿Eliminar esta mantención registrada? Esta acción no se puede deshacer.')) return;
+        state.registros.splice(+b.dataset.evdel, 1);
+        saveRegistros(); renderPreview(); renderDiscrepancias();
+        renderDetalle(eq);
+        autoExportSheets();
+      }));
     const exp = $('#detExport'); if (exp) exp.addEventListener('click', () => exportEquipo(eq, exp));
     $('#detRegistrar').addEventListener('click', () => openModal(eq));
     $('#detCorrectivo').addEventListener('click', () => openCModal(eq));
@@ -4213,47 +4223,58 @@ function json(obj) {
       ? '<a href="' + esc(o.archivoUrl) + '" target="_blank" rel="noopener" title="' + esc(o.archivoNombre || 'Ver adjunto') + '">📎</a>'
       : '<span class="muted">—</span>';
   }
+  // Abre Google Calendar con el evento prellenado (recordatorio de día completo)
+  function abrirCalendario(title, dateObj, details, location) {
+    const d = (dateObj instanceof Date && !isNaN(dateObj.getTime())) ? dateObj : new Date();
+    const url = googleCalendarUrl(title, d, details, location);
+    if (url) { try { window.open(url, '_blank'); } catch (e) {} }
+  }
+  function calPendiente(p) {
+    abrirCalendario('MP 2026 · ' + (p.equipo || 'Equipo') + ' — ' + (p.tipo || 'Pendiente'), p.fechaCompromiso,
+      'Pendiente: ' + (p.tipo || '') + ' (' + (p.estado || 'Abierto') + ')\nEquipo ' + (p.equipo || '') + ' (ID ' + (p.id || '') + ')\nResp. ejecución: ' + (p.respEjecucion || '—') + '\n' + (p.observacion || ''),
+      p.servicio || '');
+  }
+  function calCorrectivo(c) {
+    abrirCalendario('MP 2026 · ' + (c.equipo || 'Equipo') + ' — ' + (c.tipoEvento || 'Correctivo'), c.fecha,
+      'Evento correctivo: ' + (c.tipoEvento || '') + '\nEquipo ' + (c.equipo || '') + ' (ID ' + (c.id || '') + ')' + (c.empresa ? '\nEmpresa: ' + c.empresa : '') + (c.descripcion ? '\n' + c.descripcion : ''),
+      c.servicio || '');
+  }
+
+  // El panel Registrar muestra aquí los PENDIENTES (del equipo seleccionado, o
+  // todos con "Ver todos"). Las mantenciones se ven y editan en la ficha misma.
   function renderRegistry() {
-    const wrap = $('#registryWrap');
-    if (!state.registros.length) { wrap.style.display = 'none'; return; }
+    const wrap = $('#pendEquipoWrap');
+    if (!state.pendientes.length) { wrap.style.display = 'none'; return; }
     wrap.style.display = 'block';
-    const term = ($('#registryFilter') ? $('#registryFilter').value : '').trim().toLowerCase();
     const eqf = scopeEqId();   // acotar al equipo seleccionado (o null = todos)
-    const cols = ['#', 'ID', 'Equipo', 'Serie / Inv', 'Mes', 'Fecha', 'Programa', 'Resultado', 'Ejecutor', 'Estado Final', 'Adjunto', '', ''];
+    const cols = ['#', 'Equipo', 'Tipo', 'Fecha compromiso', 'Estado', 'Tareas', 'Resp. ejecución', 'Observación', '📅', '', '', ''];
     const head = '<tr>' + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
     let shown = 0;
-    const rows = state.registros.map((e, i) => {
-      if (eqf && String(e.id) !== eqf) return '';
-      const hay = [e.id, e.equipo, e.serie, e.inv, e.mes, fmtDate(e.fechaEjecucion), e.programa, e.resultado, e.ejecutor, e.estadoFinal, e.estado].join(' ').toLowerCase();
-      if (term && hay.indexOf(term) === -1) return '';
+    const rows = state.pendientes.map((p, i) => {
+      if (eqf && String(p.id) !== eqf) return '';
       shown++;
-      return '<tr>' +
-        '<td>' + (i + 1) + '</td>' +
-        '<td>' + esc(e.id) + '</td>' +
-        '<td>' + esc(e.equipo) + '</td>' +
-        '<td>' + esc(e.serie || e.inv) + '</td>' +
-        '<td>' + esc(e.mes) + '</td>' +
-        '<td>' + esc(fmtDate(e.fechaEjecucion)) + '</td>' +
-        '<td>' + esc(e.programa) + '</td>' +
-        '<td>' + esc(e.resultado) + '</td>' +
-        '<td>' + esc(e.ejecutor) + '</td>' +
-        '<td>' + esc(e.estadoFinal) + '</td>' +
-        '<td>' + adjCell(e) + '</td>' +
-        '<td><button class="btn btn-ghost btn-sm" title="Editar" data-edit="' + i + '" style="margin-top:0;padding:4px 9px">✏️</button></td>' +
-        '<td><button class="btn btn-del" title="Eliminar" data-del="' + i + '">✕</button></td>' +
-      '</tr>';
+      const tr = tareasResumen(p);
+      return '<tr><td>' + shown + '</td><td>' + esc(p.equipo) + ' <span class="muted">(ID ' + esc(p.id) + ')</span></td><td>' + esc(p.tipo || '—') +
+        '</td><td>' + esc(fmtDate(p.fechaCompromiso)) + ' · ' + dueInfo(p.fechaCompromiso) +
+        '</td><td><span class="pill" style="' + estadoPendStyle(p.estado) + '">' + esc(p.estado || 'Abierto') + '</span></td><td>' + esc(tr || '—') +
+        '</td><td>' + esc(p.respEjecucion) + '</td><td>' + esc(p.observacion) + '</td>' +
+        '<td><button class="btn btn-ghost btn-sm" title="Agregar a Google Calendar" data-cal="' + i + '" style="margin-top:0;padding:4px 8px">📅</button></td>' +
+        '<td><button class="btn btn-ghost btn-sm" title="Gestionar" data-gest="' + i + '" style="margin-top:0;padding:4px 8px">⚙️</button></td>' +
+        '<td><button class="btn btn-ghost btn-sm" title="Editar" data-edit="' + i + '" style="margin-top:0;padding:4px 8px">✏️</button></td>' +
+        '<td><button class="btn btn-del" title="Eliminar" data-del="' + i + '">✕</button></td></tr>';
     }).join('');
-    $('#registryCount').textContent = (eqf || term) ? (shown + ' / ' + state.registros.length) : state.registros.length;
-    renderScopeNote('#registryScope', shown);
-    const t = $('#registryTable');
-    t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="13" class="nomatch">' + (eqf ? 'Este equipo no tiene mantenciones registradas.' : 'Sin coincidencias para el filtro.') + '</td></tr>');
-    t.querySelectorAll('button[data-edit]').forEach(b =>
-      b.addEventListener('click', () => editRegistro(+b.dataset.edit)));
+    $('#pendEquipoCount').textContent = eqf ? (shown + ' / ' + state.pendientes.length) : state.pendientes.length;
+    renderScopeNote('#pendEquipoScope', shown);
+    const t = $('#pendEquipoTable');
+    t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="12" class="nomatch">Este equipo no tiene pendientes. Regístralos desde la ficha (📌).</td></tr>');
+    t.querySelectorAll('button[data-cal]').forEach(b => b.addEventListener('click', () => calPendiente(state.pendientes[+b.dataset.cal])));
+    t.querySelectorAll('button[data-gest]').forEach(b => b.addEventListener('click', () => openGModal(state.pendientes[+b.dataset.gest])));
+    t.querySelectorAll('button[data-edit]').forEach(b => b.addEventListener('click', () => editPendiente(+b.dataset.edit)));
     t.querySelectorAll('button[data-del]').forEach(b =>
       b.addEventListener('click', () => {
-        if (!confirm('¿Eliminar esta mantención registrada? Esta acción no se puede deshacer.')) return;
-        state.registros.splice(+b.dataset.del, 1);
-        saveRegistros(); renderRegistry(); renderPreview(); renderDiscrepancias();
+        if (!confirm('¿Eliminar este pendiente (con sus tareas y bitácora)? Esta acción no se puede deshacer.')) return;
+        state.pendientes.splice(+b.dataset.del, 1);
+        savePendientes(); renderPendientes();
         if (state.selDetalleEq) renderDetalle(state.selDetalleEq);
         autoExportSheets();
       }));
@@ -4266,7 +4287,7 @@ function json(obj) {
     wrap.style.display = 'block';
     const term = ($('#correctivosFilter') ? $('#correctivosFilter').value : '').trim().toLowerCase();
     const eqf = scopeEqId();   // acotar al equipo seleccionado (o null = todos)
-    const cols = ['#', 'ID', 'Equipo', 'Tipo de Evento', 'Fecha', 'Folio', 'N° Envío', 'Empresa', 'Ejecutor', 'Estado Final', 'Adjunto', '', ''];
+    const cols = ['#', 'ID', 'Equipo', 'Tipo de Evento', 'Fecha', 'Folio', 'N° Envío', 'Empresa', 'Ejecutor', 'Estado Final', 'Adjunto', '📅', '', ''];
     const head = '<tr>' + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
     let shown = 0;
     const rows = state.correctivos.map((c, i) => {
@@ -4278,13 +4299,16 @@ function json(obj) {
         '</td><td>' + esc(fmtDate(c.fecha)) + '</td><td>' + esc(c.folioSolicitud || c.folioGuia) + '</td><td>' + esc(c.nEnvio) +
         '</td><td>' + esc(c.empresa) + '</td><td>' + esc(c.ejecutor) + '</td><td>' + esc(c.estadoFinal) +
         '</td><td>' + adjCell(c) + '</td>' +
+        '<td><button class="btn btn-ghost btn-sm" title="Agregar a Google Calendar" data-cal="' + i + '" style="margin-top:0;padding:4px 8px">📅</button></td>' +
         '<td><button class="btn btn-ghost btn-sm" title="Editar" data-edit="' + i + '" style="margin-top:0;padding:4px 9px">✏️</button></td>' +
         '<td><button class="btn btn-del" title="Eliminar" data-del="' + i + '">✕</button></td></tr>';
     }).join('');
     $('#correctivosCount').textContent = (eqf || term) ? (shown + ' / ' + state.correctivos.length) : state.correctivos.length;
     renderScopeNote('#correctivosScope', shown);
     const t = $('#correctivosTable');
-    t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="13" class="nomatch">' + (eqf ? 'Este equipo no tiene eventos correctivos.' : 'Sin coincidencias para el filtro.') + '</td></tr>');
+    t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="14" class="nomatch">' + (eqf ? 'Este equipo no tiene eventos correctivos.' : 'Sin coincidencias para el filtro.') + '</td></tr>');
+    t.querySelectorAll('button[data-cal]').forEach(b =>
+      b.addEventListener('click', () => calCorrectivo(state.correctivos[+b.dataset.cal])));
     t.querySelectorAll('button[data-edit]').forEach(b =>
       b.addEventListener('click', () => editCorrectivo(+b.dataset.edit)));
     t.querySelectorAll('button[data-del]').forEach(b =>
@@ -4575,7 +4599,7 @@ function json(obj) {
     $('#pendNone').style.display = has ? 'none' : 'block';
     if (!has) { touch(); return; }
     const term = ($('#pendientesFilter') ? $('#pendientesFilter').value : '').trim().toLowerCase();
-    const cols = ['#', 'ID', 'Equipo', 'Tipo', 'Fecha compromiso', 'Estado', 'Tareas', 'Resp. ejecución', 'Observación', 'Adjunto', '', '', ''];
+    const cols = ['#', 'ID', 'Equipo', 'Tipo', 'Fecha compromiso', 'Estado', 'Tareas', 'Resp. ejecución', 'Observación', 'Adjunto', '📅', '', '', ''];
     const head = '<tr>' + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
     let shown = 0;
     const rows = state.pendientes.map((p, i) => {
@@ -4586,13 +4610,16 @@ function json(obj) {
       return '<tr><td>' + (i + 1) + '</td><td>' + esc(p.id) + '</td><td>' + esc(p.equipo) + '</td><td>' + esc(p.tipo || '—') + '</td><td>' + esc(fmtDate(p.fechaCompromiso)) +
         '</td><td><span class="pill" style="' + estadoPendStyle(p.estado) + '">' + esc(p.estado || 'Abierto') + '</span></td><td>' + esc(tr || '—') +
         '</td><td>' + esc(p.respEjecucion) + '</td><td>' + esc(p.observacion) + '</td><td>' + adjCell(p) +
-        '</td><td><button class="btn btn-ghost btn-sm" title="Gestionar" data-gest="' + i + '">⚙️ Gestionar</button></td>' +
+        '</td><td><button class="btn btn-ghost btn-sm" title="Agregar a Google Calendar" data-cal="' + i + '" style="margin-top:0;padding:4px 8px">📅</button></td>' +
+        '<td><button class="btn btn-ghost btn-sm" title="Gestionar" data-gest="' + i + '">⚙️ Gestionar</button></td>' +
         '<td><button class="btn btn-ghost btn-sm" title="Editar" data-edit="' + i + '" style="margin-top:0;padding:4px 9px">✏️</button></td>' +
         '<td><button class="btn btn-del" title="Eliminar" data-del="' + i + '">✕</button></td></tr>';
     }).join('');
     $('#pendientesCount').textContent = term ? (shown + ' / ' + state.pendientes.length) : state.pendientes.length;
     const t = $('#pendientesTable');
-    t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="13" class="nomatch">Sin coincidencias para el filtro.</td></tr>');
+    t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="14" class="nomatch">Sin coincidencias para el filtro.</td></tr>');
+    t.querySelectorAll('button[data-cal]').forEach(b =>
+      b.addEventListener('click', () => calPendiente(state.pendientes[+b.dataset.cal])));
     t.querySelectorAll('button[data-gest]').forEach(b =>
       b.addEventListener('click', () => openGModal(state.pendientes[+b.dataset.gest])));
     t.querySelectorAll('button[data-edit]').forEach(b =>
@@ -4605,6 +4632,7 @@ function json(obj) {
         if (state.selDetalleEq) renderDetalle(state.selDetalleEq);
         autoExportSheets();
       }));
+    renderRegistry();   // refleja los cambios en el bloque Pendientes del panel Registrar
     touch();
   }
 
@@ -4717,7 +4745,9 @@ function json(obj) {
     $('#gTareaLista').innerHTML = tareas.length ? tareas.map((t, i) =>
       '<div class="titem"><label><input type="checkbox" data-tg="' + i + '"' + (t.hecha ? ' checked' : '') + '> <span' +
       (t.hecha ? ' style="text-decoration:line-through;color:var(--muted)"' : '') + '>' + esc(t.texto) + '</span></label>' +
-      '<button class="btn btn-del" title="Eliminar tarea" data-td="' + i + '">✕</button></div>').join('')
+      '<span style="display:flex;gap:2px">' +
+      '<button class="btn btn-ghost btn-sm" title="Agregar tarea a Google Calendar" data-tc="' + i + '" style="margin-top:0;padding:2px 7px">📅</button>' +
+      '<button class="btn btn-del" title="Eliminar tarea" data-td="' + i + '">✕</button></span></div>').join('')
       : '<div class="muted" style="font-size:12.5px">Sin tareas.</div>';
     // Bitácora (más reciente primero)
     const acts = (p.actualizaciones || []).slice().reverse();
@@ -4727,6 +4757,12 @@ function json(obj) {
     // wire
     $('#gTareaLista').querySelectorAll('input[data-tg]').forEach(c =>
       c.addEventListener('change', () => { p.tareas[+c.dataset.tg].hecha = c.checked; gPersist(); renderGModal(); }));
+    $('#gTareaLista').querySelectorAll('button[data-tc]').forEach(b =>
+      b.addEventListener('click', () => {
+        const t = p.tareas[+b.dataset.tc]; if (!t) return;
+        abrirCalendario('Tarea MP 2026: ' + t.texto + ' · ' + (p.equipo || ''), p.fechaCompromiso,
+          'Tarea del pendiente "' + (p.tipo || '') + '" · Equipo ' + (p.equipo || '') + ' (ID ' + (p.id || '') + ')\n' + (p.observacion || ''), p.servicio || '');
+      }));
     $('#gTareaLista').querySelectorAll('button[data-td]').forEach(b =>
       b.addEventListener('click', () => { p.tareas.splice(+b.dataset.td, 1); gPersist(); renderGModal(); }));
   }
@@ -4967,7 +5003,6 @@ function json(obj) {
     saveRegistros(); renderRegistry(); renderPreview(); renderDiscrepancias();
     setStatus('Registros eliminados.', 'info');
   });
-  $('#registryFilter').addEventListener('input', renderRegistry);
   $('#correctivosFilter').addEventListener('input', renderCorrectivos);
   $('#inventarioFilter').addEventListener('input', renderInventario);
 
