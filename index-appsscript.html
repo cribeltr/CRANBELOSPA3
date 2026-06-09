@@ -1164,6 +1164,15 @@ function json(obj) {
   </section>
 
   <section class="tabpanel" id="tab-ayuda">
+  <div class="card">
+    <p class="section-title">🧭 ¿Cómo se usa? (lo esencial)</p>
+    <ol class="steps">
+      <li><b>Importar programación</b> (una vez): sube el Excel <i>Programación MP 2026</i>. Si usas Google Sheets, al abrir el link los datos se cargan solos.</li>
+      <li><b>Buscar el equipo</b>: usa el buscador 🔎 del panel lateral (serie, inventario o nombre) o la pestaña <b>Equipos</b>.</li>
+      <li><b>En la ficha</b>: el <b>Plan preventivo 2026</b> muestra el año completo (clic en un mes celeste = registrar esa mantención). Abajo, el historial con todo lo ocurrido; clic en una fila para ver el detalle, <b>✏️ editar</b> o ⚙️ gestionar.</li>
+      <li><b>Todo se guarda solo</b> en este navegador y, si está activado, en Google Sheets. Exporta a Excel desde Resumen, Equipos o la propia ficha.</li>
+    </ol>
+  </div>
   <div class="card" id="card-ayuda">
     <details>
       <summary>📖 Diccionario de códigos y reglas</summary>
@@ -1286,7 +1295,7 @@ function json(obj) {
 <!-- Vista de registro de evento correctivo -->
 <div id="cmodal" class="modal-overlay" role="dialog" aria-modal="true">
   <div class="modal">
-    <div class="modal-head"><h3>🛠️ Registrar evento correctivo</h3><button id="cClose" class="x" type="button" aria-label="Cerrar">✕</button></div>
+    <div class="modal-head"><h3 id="cmodalTitle">🛠️ Registrar evento correctivo</h3><button id="cClose" class="x" type="button" aria-label="Cerrar">✕</button></div>
     <div class="muted">Seleccione el tipo de evento y complete los datos.</div>
     <div id="cmodalEq" class="eqbox"></div>
 
@@ -1322,7 +1331,7 @@ function json(obj) {
 <!-- Vista de registro de pendiente -->
 <div id="pmodal" class="modal-overlay" role="dialog" aria-modal="true">
   <div class="modal">
-    <div class="modal-head"><h3>📌 Registrar pendiente</h3><button id="pClose" class="x" type="button" aria-label="Cerrar">✕</button></div>
+    <div class="modal-head"><h3 id="pmodalTitle">📌 Registrar pendiente</h3><button id="pClose" class="x" type="button" aria-label="Cerrar">✕</button></div>
     <div class="muted">Complete los datos del pendiente.</div>
     <div id="pmodalEq" class="eqbox"></div>
 
@@ -3813,7 +3822,21 @@ function json(obj) {
       ? '<div class="evrem">' + recordatorioLink('MP 2026 · ' + (e.equipo || 'Equipo') + ' — ' + it.evento, it.remDate,
           it.evento + ' · Equipo ' + (e.equipo || '') + ' (ID ' + (e.id || '') + ', Serie ' + (e.serie || '—') + ', Inv ' + (e.inv || '—') + ').', e.servicio || '') + '</div>'
       : '';
-    return grid + obs + adj + rem;
+    // Acciones del evento: editar (y gestionar, si es pendiente)
+    let acc = '';
+    if (it.kind === 'prev' && e.regId) {
+      const i = state.registros.findIndex(r => r.regId === e.regId);
+      if (i >= 0) acc = '<button class="btn btn-ghost btn-sm" type="button" data-evedit="reg:' + i + '" style="margin-top:0">✏️ Editar</button>';
+    } else if (it.kind === 'corr') {
+      const i = state.correctivos.indexOf(e);
+      if (i >= 0) acc = '<button class="btn btn-ghost btn-sm" type="button" data-evedit="corr:' + i + '" style="margin-top:0">✏️ Editar</button>';
+    } else if (it.kind === 'pend') {
+      const i = state.pendientes.indexOf(e);
+      if (i >= 0) acc = '<button class="btn btn-ghost btn-sm" type="button" data-evedit="pend:' + i + '" style="margin-top:0">✏️ Editar</button> ' +
+        '<button class="btn btn-primary btn-sm" type="button" data-evgest="' + i + '" style="margin-top:0">⚙️ Gestionar</button>';
+    }
+    const accHtml = acc ? '<div class="actions" style="margin-top:8px">' + acc + '</div>' : '';
+    return grid + obs + adj + rem + accHtml;
   }
   // Excel con todos los eventos del equipo que se está viendo (cronológico)
   function buildEquipoWorkbook(eq) {
@@ -3855,6 +3878,42 @@ function json(obj) {
   async function exportEquipo(eq, btn) {
     const base = String(eq.equipo || ('equipo_' + eq.id)).replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 40) || 'equipo';
     await deliverXlsx(() => buildEquipoWorkbook(eq), 'Eventos_' + base + '_' + stamp() + '.xlsx', btn);
+  }
+
+  // Matriz anual del plan preventivo: columnas Ene→Dic; filas Programa /
+  // Resultado / Ejecutor / Estado. Es la misma forma del Excel de origen.
+  function matrizPreventiva(eq) {
+    const evs = consolidatedEvents().filter(e => e.id === eq.id);
+    const byMes = {}; evs.forEach(e => { byMes[e.nMes - 1] = e; });
+    const nowMi = new Date().getMonth();
+    const prog = i => (eq.prog && eq.prog[i]) ? eq.prog[i] : (byMes[i] ? byMes[i].programa : '');
+    const thStyle = i => (i === nowMi ? 'background:#0a3d47' : '');
+    const tdBase = 'text-align:center;';
+    const hdr = '<tr><th style="text-align:left">2026</th>' + MP.MONTHS.map((m, i) =>
+      '<th style="text-align:center;' + thStyle(i) + '"' + (i === nowMi ? ' title="Mes actual"' : '') + '>' + esc(m) + '</th>').join('') + '</tr>';
+    const filaProg = '<tr><td style="font-weight:700">Programa</td>' + MP.MONTHS.map((m, i) => {
+      const p = prog(i);
+      const clic = p ? ' class="mescelda" data-mmi="' + i + '" title="Clic para registrar la mantención de ' + esc(MP.MONTHS_FULL[i]) + '" style="' + tdBase + 'cursor:pointer;font-weight:800;color:var(--teal-d);background:#eaf3f5"' : ' style="' + tdBase + 'color:#b8c5ca"';
+      return '<td' + clic + '>' + (p ? esc(p) : '·') + '</td>';
+    }).join('') + '</tr>';
+    const filaRes = '<tr><td style="font-weight:700">Resultado</td>' + MP.MONTHS.map((m, i) => {
+      const e = byMes[i]; const r = e ? e.resultado : '';
+      return '<td style="' + tdBase + (r ? 'font-weight:700' : 'color:#b8c5ca') + '">' + (r ? esc(r) : '·') + '</td>';
+    }).join('') + '</tr>';
+    const filaEje = '<tr><td style="font-weight:700">Ejecutor</td>' + MP.MONTHS.map((m, i) => {
+      const e = byMes[i]; const x = e && e.ejecutor ? e.ejecutor : '';
+      const ini = x ? x.split(/\s+/).map(s => s[0]).join('').slice(0, 3).toUpperCase() : '';
+      return '<td style="' + tdBase + (ini ? '' : 'color:#b8c5ca') + '"' + (x ? ' title="' + esc(x) + '"' : '') + '>' + (ini ? esc(ini) : '·') + '</td>';
+    }).join('') + '</tr>';
+    const filaEst = '<tr><td style="font-weight:700">Estado</td>' + MP.MONTHS.map((m, i) => {
+      const e = byMes[i];
+      if (!e) return '<td style="' + tdBase + 'color:#b8c5ca">·</td>';
+      const corto = e.estado.indexOf('Realizada') === 0 ? '✔' : e.estado === 'Reprogramada' ? '↻' : e.estado.indexOf('Pendiente') === 0 ? '⏳' : e.estado === 'Fuera de Servicio' ? 'FS' : e.estado === 'No Realizada' ? '✖' : e.estado === 'Baja' ? '⛔' : e.estado.slice(0, 2);
+      return '<td style="' + tdBase + '" title="' + esc(e.estado) + '"><span class="pill" style="' + estadoStyle(e.estado) + '">' + corto + '</span></td>';
+    }).join('') + '</tr>';
+    return '<div class="section-title" style="font-size:14px;margin-top:14px">📅 Plan preventivo 2026</div>' +
+      '<div class="muted" style="margin:2px 0 6px;font-size:12.5px">Una columna por mes. <b>Clic en un mes con programa</b> (fondo celeste) para registrar esa mantención. ✔ realizada · ↻ reprogramada · ⏳ pendiente.</div>' +
+      '<div class="tablewrap"><table class="prev" style="white-space:nowrap">' + hdr + filaProg + filaRes + filaEje + filaEst + '</table></div>';
   }
 
   function renderDetalle(eq) {
@@ -3901,19 +3960,40 @@ function json(obj) {
         '<div class="tablewrap"><table class="prev">' + h + rows + '</table></div>';
     }
 
-    $('#equipoDetalle').innerHTML = efBanner + head + body +
+    $('#equipoDetalle').innerHTML = efBanner + head + matrizPreventiva(eq) + body +
       '<div class="actions" style="margin-top:12px">' +
         '<button id="detRegistrar" class="btn btn-accent btn-sm" type="button">🔧 Registrar mantención preventiva</button>' +
         '<button id="detCorrectivo" class="btn btn-primary btn-sm" type="button">🛠️ Registrar evento correctivo</button>' +
         '<button id="detPendiente" class="btn btn-ghost btn-sm" type="button">📌 Registrar pendiente</button>' +
       '</div>';
     $('#equipoDetalle').style.display = 'block';
+    // Matriz: clic en un mes programado -> registrar esa mantención (fecha prellenada)
+    $('#equipoDetalle').querySelectorAll('.mescelda[data-mmi]').forEach(td =>
+      td.addEventListener('click', () => {
+        const mi = +td.dataset.mmi;
+        openModal(eq);
+        const hoy = new Date();
+        const dia = (hoy.getMonth() === mi) ? hoy.getDate() : 15;   // mismo mes: hoy; otro mes: día 15 editable
+        $('#mFecha').value = '2026-' + pad2(mi + 1) + '-' + pad2(dia);
+        onDateChange();
+      }));
     // Expandir/contraer el detalle de cada evento
     $('#equipoDetalle').querySelectorAll('tr.clik[data-ti]').forEach(tr =>
       tr.addEventListener('click', () => {
         const det = $('#equipoDetalle').querySelector('tr.detrow[data-det="' + tr.dataset.ti + '"]');
         if (det) det.style.display = (det.style.display === 'none') ? '' : 'none';
       }));
+    // Botones de acción dentro del detalle de cada evento (editar / gestionar)
+    $('#equipoDetalle').querySelectorAll('button[data-evedit]').forEach(b =>
+      b.addEventListener('click', ev => {
+        ev.stopPropagation();
+        const parts = b.dataset.evedit.split(':'); const idx = +parts[1];
+        if (parts[0] === 'reg') editRegistro(idx);
+        else if (parts[0] === 'corr') editCorrectivo(idx);
+        else if (parts[0] === 'pend') editPendiente(idx);
+      }));
+    $('#equipoDetalle').querySelectorAll('button[data-evgest]').forEach(b =>
+      b.addEventListener('click', ev => { ev.stopPropagation(); openGModal(state.pendientes[+b.dataset.evgest]); }));
     const exp = $('#detExport'); if (exp) exp.addEventListener('click', () => exportEquipo(eq, exp));
     $('#detRegistrar').addEventListener('click', () => openModal(eq));
     $('#detCorrectivo').addEventListener('click', () => openCModal(eq));
@@ -4186,7 +4266,7 @@ function json(obj) {
     wrap.style.display = 'block';
     const term = ($('#correctivosFilter') ? $('#correctivosFilter').value : '').trim().toLowerCase();
     const eqf = scopeEqId();   // acotar al equipo seleccionado (o null = todos)
-    const cols = ['#', 'ID', 'Equipo', 'Tipo de Evento', 'Fecha', 'Folio', 'N° Envío', 'Empresa', 'Ejecutor', 'Estado Final', 'Adjunto', ''];
+    const cols = ['#', 'ID', 'Equipo', 'Tipo de Evento', 'Fecha', 'Folio', 'N° Envío', 'Empresa', 'Ejecutor', 'Estado Final', 'Adjunto', '', ''];
     const head = '<tr>' + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
     let shown = 0;
     const rows = state.correctivos.map((c, i) => {
@@ -4197,12 +4277,16 @@ function json(obj) {
       return '<tr><td>' + (i + 1) + '</td><td>' + esc(c.id) + '</td><td>' + esc(c.equipo) + '</td><td>' + esc(c.tipoEvento) +
         '</td><td>' + esc(fmtDate(c.fecha)) + '</td><td>' + esc(c.folioSolicitud || c.folioGuia) + '</td><td>' + esc(c.nEnvio) +
         '</td><td>' + esc(c.empresa) + '</td><td>' + esc(c.ejecutor) + '</td><td>' + esc(c.estadoFinal) +
-        '</td><td>' + adjCell(c) + '</td><td><button class="btn btn-del" title="Eliminar" data-del="' + i + '">✕</button></td></tr>';
+        '</td><td>' + adjCell(c) + '</td>' +
+        '<td><button class="btn btn-ghost btn-sm" title="Editar" data-edit="' + i + '" style="margin-top:0;padding:4px 9px">✏️</button></td>' +
+        '<td><button class="btn btn-del" title="Eliminar" data-del="' + i + '">✕</button></td></tr>';
     }).join('');
     $('#correctivosCount').textContent = (eqf || term) ? (shown + ' / ' + state.correctivos.length) : state.correctivos.length;
     renderScopeNote('#correctivosScope', shown);
     const t = $('#correctivosTable');
-    t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="12" class="nomatch">' + (eqf ? 'Este equipo no tiene eventos correctivos.' : 'Sin coincidencias para el filtro.') + '</td></tr>');
+    t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="13" class="nomatch">' + (eqf ? 'Este equipo no tiene eventos correctivos.' : 'Sin coincidencias para el filtro.') + '</td></tr>');
+    t.querySelectorAll('button[data-edit]').forEach(b =>
+      b.addEventListener('click', () => editCorrectivo(+b.dataset.edit)));
     t.querySelectorAll('button[data-del]').forEach(b =>
       b.addEventListener('click', () => {
         if (!confirm('¿Eliminar este evento correctivo? Esta acción no se puede deshacer.')) return;
@@ -4269,7 +4353,9 @@ function json(obj) {
   }
 
   function openCModal(eq) {
-    state.cEq = eq;
+    state.cEq = eq; state.cEditIdx = null;
+    $('#cmodalTitle').textContent = '🛠️ Registrar evento correctivo';
+    $('#cSave').textContent = 'Guardar evento';
     $('#cmodalEq').innerHTML = '<b>' + esc(eq.equipo) + '</b> (ID ' + esc(eq.id) + ') · Serie: <b>' +
       esc(eq.serie || '—') + '</b> · Inv: <b>' + esc(eq.inv || '—') + '</b>';
     $('#cTipo').value = '';
@@ -4280,7 +4366,27 @@ function json(obj) {
     $('#cSave').disabled = true;
     $('#cmodal').classList.add('show');
   }
-  function closeCModal() { $('#cmodal').classList.remove('show'); state.cEq = null; }
+  function closeCModal() { $('#cmodal').classList.remove('show'); state.cEq = null; state.cEditIdx = null; }
+
+  // Editar un evento correctivo: reabre el modal prellenado; al guardar reemplaza
+  // el evento conservando su CorrID, adjunto y fecha de registro.
+  function editCorrectivo(i) {
+    const c = state.correctivos[i]; if (!c) return;
+    const eq = state.equipos.find(q => String(q.id) === String(c.id)) ||
+      { id: c.id, equipo: c.equipo, serie: c.serie, inv: c.inv, servicio: c.servicio, unidad: c.unidad, ubicacion: c.ubicacion || '', marca: c.marca || '', modelo: c.modelo || '', familia: '', carpeta: '' };
+    openCModal(eq);
+    state.cEditIdx = i;
+    $('#cmodalTitle').textContent = '✏️ Editar evento correctivo';
+    $('#cSave').textContent = 'Guardar cambios';
+    $('#cTipo').value = c.tipoEvento || '';
+    renderCFields();
+    (MP.CORRECTIVO_CAMPOS[c.tipoEvento] || []).forEach(k => {
+      const el = $('#cf_' + k); if (!el) return;
+      el.value = (k === 'fecha') ? (c.fecha instanceof Date ? isoDate(c.fecha) : '') : (c[k] || '');
+    });
+    updateCSave();
+  }
+
   function saveCorrectivo() {
     const eq = state.cEq, tipo = $('#cTipo').value;
     if (!eq || !tipo) return;
@@ -4297,14 +4403,24 @@ function json(obj) {
     const attFile = $('#cFile') ? $('#cFile').files[0] : null;
     const attDesc = $('#cFileDesc') ? $('#cFileDesc').value.trim() : '';
     const remVal = $('#cRecordatorio') ? $('#cRecordatorio').value : '';   // capturar antes de cerrar
-    corr.corrId = uid('C');
-    corr.registradoEl = nowIso();
-    state.correctivos.push(corr);
+    const cEdit = state.cEditIdx;
+    if (cEdit != null && state.correctivos[cEdit]) {
+      const old = state.correctivos[cEdit];
+      corr.corrId = old.corrId || uid('C');
+      corr.registradoEl = old.registradoEl || nowIso();
+      corr.actualizadoEl = nowIso();
+      if (old.archivoUrl) { corr.archivoUrl = old.archivoUrl; corr.archivoNombre = old.archivoNombre; }
+      state.correctivos[cEdit] = corr;
+    } else {
+      corr.corrId = uid('C');
+      corr.registradoEl = nowIso();
+      state.correctivos.push(corr);
+    }
     saveCorrectivos();
     closeCModal();
     renderCorrectivos();
     if (state.selDetalleEq) renderDetalle(state.selDetalleEq);
-    let cmsg = '✅ Evento correctivo registrado: <b>' + esc(eq.equipo) + '</b> — ' + esc(tipo) + '.';
+    let cmsg = (cEdit != null ? '✏️ Evento correctivo actualizado: <b>' : '✅ Evento correctivo registrado: <b>') + esc(eq.equipo) + '</b> — ' + esc(tipo) + '.';
     let ckind = 'ok';
     if (remVal) {
       const rp = remVal.split('-'); const rd = new Date(+rp[0], +rp[1] - 1, +rp[2]);
@@ -4459,7 +4575,7 @@ function json(obj) {
     $('#pendNone').style.display = has ? 'none' : 'block';
     if (!has) { touch(); return; }
     const term = ($('#pendientesFilter') ? $('#pendientesFilter').value : '').trim().toLowerCase();
-    const cols = ['#', 'ID', 'Equipo', 'Tipo', 'Fecha compromiso', 'Estado', 'Tareas', 'Resp. ejecución', 'Observación', 'Adjunto', '', ''];
+    const cols = ['#', 'ID', 'Equipo', 'Tipo', 'Fecha compromiso', 'Estado', 'Tareas', 'Resp. ejecución', 'Observación', 'Adjunto', '', '', ''];
     const head = '<tr>' + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
     let shown = 0;
     const rows = state.pendientes.map((p, i) => {
@@ -4471,13 +4587,16 @@ function json(obj) {
         '</td><td><span class="pill" style="' + estadoPendStyle(p.estado) + '">' + esc(p.estado || 'Abierto') + '</span></td><td>' + esc(tr || '—') +
         '</td><td>' + esc(p.respEjecucion) + '</td><td>' + esc(p.observacion) + '</td><td>' + adjCell(p) +
         '</td><td><button class="btn btn-ghost btn-sm" title="Gestionar" data-gest="' + i + '">⚙️ Gestionar</button></td>' +
+        '<td><button class="btn btn-ghost btn-sm" title="Editar" data-edit="' + i + '" style="margin-top:0;padding:4px 9px">✏️</button></td>' +
         '<td><button class="btn btn-del" title="Eliminar" data-del="' + i + '">✕</button></td></tr>';
     }).join('');
     $('#pendientesCount').textContent = term ? (shown + ' / ' + state.pendientes.length) : state.pendientes.length;
     const t = $('#pendientesTable');
-    t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="12" class="nomatch">Sin coincidencias para el filtro.</td></tr>');
+    t.innerHTML = head + rows + (shown ? '' : '<tr><td colspan="13" class="nomatch">Sin coincidencias para el filtro.</td></tr>');
     t.querySelectorAll('button[data-gest]').forEach(b =>
       b.addEventListener('click', () => openGModal(state.pendientes[+b.dataset.gest])));
+    t.querySelectorAll('button[data-edit]').forEach(b =>
+      b.addEventListener('click', () => editPendiente(+b.dataset.edit)));
     t.querySelectorAll('button[data-del]').forEach(b =>
       b.addEventListener('click', () => {
         if (!confirm('¿Eliminar este pendiente (con sus tareas y bitácora)? Esta acción no se puede deshacer.')) return;
@@ -4494,7 +4613,9 @@ function json(obj) {
     $('#pSave').disabled = !(state.pEq && $('#pTipo').value && $('#pFecha').value && $('#pRespAdmin').value && $('#pRespEjec').value && $('#pObs').value.trim());
   }
   function openPModal(eq) {
-    state.pEq = eq;
+    state.pEq = eq; state.pEditIdx = null;
+    $('#pmodalTitle').textContent = '📌 Registrar pendiente';
+    $('#pSave').textContent = 'Guardar pendiente';
     $('#pmodalEq').innerHTML = '<b>' + esc(eq.equipo) + '</b> (ID ' + esc(eq.id) + ') · Serie: <b>' +
       esc(eq.serie || '—') + '</b> · Inv: <b>' + esc(eq.inv || '—') + '</b>';
     $('#pTipo').value = ''; $('#pFecha').value = ''; $('#pRespAdmin').value = ''; $('#pRespEjec').value = ''; $('#pObs').value = '';
@@ -4506,7 +4627,26 @@ function json(obj) {
   // Fija la fecha de compromiso a N días hábiles (o N días corridos) desde hoy.
   function addBusinessDays(base, n) { const r = new Date(base); let added = 0; while (added < n) { r.setDate(r.getDate() + 1); const wd = r.getDay(); if (wd !== 0 && wd !== 6) added++; } return r; }
   function setPFecha(d) { $('#pFecha').value = isoDate(d); updatePSave(); }
-  function closePModal() { $('#pmodal').classList.remove('show'); state.pEq = null; }
+  function closePModal() { $('#pmodal').classList.remove('show'); state.pEq = null; state.pEditIdx = null; }
+
+  // Editar un pendiente (datos base): conserva PendID, estado, tareas, bitácora
+  // y adjunto. El estado/tareas/bitácora se gestionan con ⚙️ Gestionar.
+  function editPendiente(i) {
+    const p = state.pendientes[i]; if (!p) return;
+    const eq = state.equipos.find(q => String(q.id) === String(p.id)) ||
+      { id: p.id, equipo: p.equipo, serie: p.serie, inv: p.inv, servicio: p.servicio, unidad: p.unidad, ubicacion: p.ubicacion || '', marca: p.marca || '', modelo: p.modelo || '', familia: '', carpeta: '' };
+    openPModal(eq);
+    state.pEditIdx = i;
+    $('#pmodalTitle').textContent = '✏️ Editar pendiente';
+    $('#pSave').textContent = 'Guardar cambios';
+    $('#pTipo').value = p.tipo || '';
+    $('#pFecha').value = (p.fechaCompromiso instanceof Date) ? isoDate(p.fechaCompromiso) : '';
+    $('#pRespAdmin').value = p.respAdministrativo || '';
+    $('#pRespEjec').value = p.respEjecucion || '';
+    $('#pObs').value = p.observacion || '';
+    updatePSave();
+  }
+
   function savePendiente() {
     const eq = state.pEq;
     if (!eq) return;
@@ -4524,14 +4664,28 @@ function json(obj) {
     });
     const attFile = $('#pFile') ? $('#pFile').files[0] : null;
     const attDesc = $('#pFileDesc') ? $('#pFileDesc').value.trim() : '';
-    pend.pendId = uid('P');
-    pend.registradoEl = nowIso();
-    state.pendientes.push(pend);
+    const pEdit = state.pEditIdx;
+    if (pEdit != null && state.pendientes[pEdit]) {
+      const old = state.pendientes[pEdit];
+      pend.pendId = old.pendId || uid('P');
+      pend.registradoEl = old.registradoEl || nowIso();
+      pend.actualizadoEl = nowIso();
+      pend.estado = old.estado || 'Abierto';
+      pend.resueltoEl = old.resueltoEl || '';
+      pend.tareas = old.tareas || [];
+      pend.actualizaciones = old.actualizaciones || [];
+      if (old.archivoUrl) { pend.archivoUrl = old.archivoUrl; pend.archivoNombre = old.archivoNombre; }
+      state.pendientes[pEdit] = pend;
+    } else {
+      pend.pendId = uid('P');
+      pend.registradoEl = nowIso();
+      state.pendientes.push(pend);
+    }
     savePendientes();
     closePModal();
     renderPendientes();
     if (state.selDetalleEq) renderDetalle(state.selDetalleEq);
-    setStatus('✅ Pendiente registrado: <b>' + esc(eq.equipo) + '</b>.' +
+    setStatus((pEdit != null ? '✏️ Pendiente actualizado: <b>' : '✅ Pendiente registrado: <b>') + esc(eq.equipo) + '</b>.' +
       recordatorioLink('MP 2026 · ' + (eq.equipo || 'Equipo') + ' — ' + pTipo, pend.fechaCompromiso,
         'Pendiente "' + pTipo + '" · Equipo ' + (eq.equipo || '') + ' (ID ' + eq.id + ', Serie ' + (eq.serie || '—') + ', Inv ' + (eq.inv || '—') + ').' +
         '\nResp. ejecución: ' + ($('#pRespEjec').value || '—') + '\n' + (pend.observacion || ''),
