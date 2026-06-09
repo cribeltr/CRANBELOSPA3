@@ -3324,9 +3324,116 @@ function json(obj) {
     }));
   }
 
+  // Estilo de la pastilla "Tipo" del historial unificado
+  function tipoEventoStyle(t) {
+    if (t === 'Preventivo') return 'background:#DDEBF7;color:#0a4a6e';
+    if (t === 'Correctivo') return 'background:#E6E0F8;color:#4b3b8a';
+    return 'background:#FFF2CC;color:#7a5b00'; // Pendiente
+  }
+  // Línea de tiempo unificada del equipo (preventivos + correctivos + pendientes),
+  // del más reciente al más antiguo. Cada item conserva su registro para el detalle/export.
+  function equipoTimeline(eq) {
+    const items = [];
+    consolidatedEvents().filter(e => e.id === eq.id).forEach(e => {
+      const real = (e.fechaEjecucion instanceof Date) ? e.fechaEjecucion : null;
+      const sort = real ? real.getTime() : new Date(2026, (e.nMes || 1) - 1, 1).getTime();
+      items.push({
+        kind: 'prev', tipo: 'Preventivo', sort, fecha: real,
+        evento: 'Mantención preventiva' + (e.mes ? ' — ' + e.mes : ''),
+        resEstado: [e.resultado, e.estado].filter(Boolean).join(' · ') || (e.estado || '—'),
+        quien: e.ejecutor || '—', estadoFinal: e.estadoFinal || '', raw: e
+      });
+    });
+    state.correctivos.filter(c => c.id === eq.id).forEach(c => {
+      const real = (c.fecha instanceof Date) ? c.fecha : null;
+      items.push({
+        kind: 'corr', tipo: 'Correctivo', sort: real ? real.getTime() : 0, fecha: real,
+        evento: c.tipoEvento || 'Evento correctivo', resEstado: '—',
+        quien: c.ejecutor || '—', estadoFinal: c.estadoFinal || '', raw: c
+      });
+    });
+    state.pendientes.filter(p => p.id === eq.id).forEach(p => {
+      const real = (p.fechaCompromiso instanceof Date) ? p.fechaCompromiso : null;
+      items.push({
+        kind: 'pend', tipo: 'Pendiente', sort: real ? real.getTime() : 0, fecha: real,
+        evento: 'Pendiente' + (p.tipo ? ': ' + p.tipo : ''), resEstado: p.estado || 'Abierto',
+        quien: p.respEjecucion || '—', estadoFinal: '', raw: p
+      });
+    });
+    items.sort((a, b) => b.sort - a.sort);
+    return items;
+  }
+  // Panel de detalle (clave/valor) de un evento del historial
+  function eventoDetalleHTML(it) {
+    const v = x => (x !== null && x !== undefined && String(x).trim() !== '') ? esc(x) : '—';
+    const e = it.raw; let pairs;
+    if (it.kind === 'prev') {
+      pairs = [['Mes', e.mes], ['Programa (P)', e.programa], ['Tipo de programación', e.tipoPrograma],
+        ['Resultado (R)', e.resultado], ['Detalle del resultado', e.detalleResultado],
+        ['Fecha de ejecución', fmtDate(e.fechaEjecucion)], ['Estado', e.estado],
+        ['Ejecutor', e.ejecutor], ['Estado final', e.estadoFinal],
+        ['Causal', e.causal], ['Descripción de la causal', e.causalDesc], ['Regla', e.regla]];
+    } else if (it.kind === 'corr') {
+      pairs = [['Tipo de evento', e.tipoEvento], ['Fecha', fmtDate(e.fecha)],
+        ['Folio solicitud', e.folioSolicitud], ['Folio guía', e.folioGuia], ['N° envío', e.nEnvio],
+        ['Empresa', e.empresa], ['Ejecutor', e.ejecutor], ['Estado final', e.estadoFinal]];
+    } else {
+      pairs = [['Tipo', e.tipo], ['Fecha de compromiso', fmtDate(e.fechaCompromiso)], ['Estado', e.estado || 'Abierto'],
+        ['Resp. administrativo', e.respAdministrativo], ['Resp. ejecución', e.respEjecucion],
+        ['Tareas', tareasResumen(e) || '—'], ['Última actualización', ultimaActTexto(e) || '—']];
+    }
+    const grid = '<div class="ficha">' + pairs.map(p =>
+      '<div class="fi"><span class="k">' + esc(p[0]) + '</span><span class="v">' + v(p[1]) + '</span></div>').join('') + '</div>';
+    const longText = (it.kind === 'corr') ? e.descripcion : e.observacion;
+    const obs = (longText && String(longText).trim())
+      ? '<div class="fi-obs"><span class="k">' + (it.kind === 'corr' ? 'Descripción' : 'Observación') + '</span><span class="vv">' + esc(longText) + '</span></div>' : '';
+    const adj = e.archivoUrl
+      ? '<div style="margin-top:6px"><a href="' + esc(e.archivoUrl) + '" target="_blank" rel="noopener">📎 ' + esc(e.archivoNombre || 'Ver adjunto') + '</a></div>' : '';
+    return grid + obs + adj;
+  }
+  // Excel con todos los eventos del equipo que se está viendo (cronológico)
+  function buildEquipoWorkbook(eq) {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Generador de Eventos MP'; wb.created = new Date();
+    const headFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF15616D' } };
+    const headFont = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11, name: 'Calibri' };
+    const sh = wb.addWorksheet(('Eventos ' + (eq.id || '')).slice(0, 31) || 'Eventos', { views: [{ state: 'frozen', ySplit: 1 }] });
+    sh.columns = [
+      { header: 'ID', key: 'id', width: 8 }, { header: 'Equipo', key: 'equipo', width: 24 },
+      { header: 'N° Serie', key: 'serie', width: 16 }, { header: 'N° Inventario', key: 'inv', width: 14 },
+      { header: 'Fecha', key: 'fecha', width: 13 }, { header: 'Tipo', key: 'tipo', width: 12 },
+      { header: 'Evento', key: 'evento', width: 28 }, { header: 'Programa', key: 'programa', width: 10 },
+      { header: 'Resultado', key: 'resultado', width: 12 }, { header: 'Estado', key: 'estado', width: 20 },
+      { header: 'Ejecutor / Responsable', key: 'quien', width: 24 }, { header: 'Empresa', key: 'empresa', width: 20 },
+      { header: 'Folio / N°', key: 'folio', width: 16 }, { header: 'Descripción / Observación', key: 'desc', width: 48 },
+      { header: 'Estado final', key: 'estadoFinal', width: 16 }
+    ];
+    const hr = sh.getRow(1); hr.height = 24;
+    hr.eachCell(c => { c.fill = headFill; c.font = headFont; c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }; });
+    const idN = MP.toNum(eq.id);
+    equipoTimeline(eq).forEach(it => {
+      const e = it.raw; let programa = '', resultado = '', estado = '', empresa = '', folio = '', desc = '';
+      if (it.kind === 'prev') { programa = e.programa; resultado = e.resultado; estado = e.estado; desc = e.observacion; }
+      else if (it.kind === 'corr') { empresa = e.empresa; folio = [e.folioSolicitud, e.folioGuia, e.nEnvio].filter(Boolean).join(' / '); desc = e.descripcion; }
+      else { estado = e.estado || 'Abierto'; desc = e.observacion; }
+      const row = sh.addRow({
+        id: idN != null ? idN : (eq.id || ''), equipo: eq.equipo, serie: eq.serie, inv: eq.inv,
+        fecha: (it.fecha instanceof Date) ? it.fecha : '', tipo: it.tipo, evento: it.evento,
+        programa: programa, resultado: resultado, estado: estado, quien: (it.quien === '—' ? '' : it.quien),
+        empresa: empresa, folio: folio, desc: desc, estadoFinal: it.estadoFinal
+      });
+      row.getCell(3).numFmt = '@'; row.getCell(4).numFmt = '@';   // N° Serie / N° Inventario como texto
+      const fc = row.getCell(5); if (fc.value instanceof Date) fc.numFmt = 'dd-mm-yyyy';
+    });
+    sh.autoFilter = { from: 'A1', to: sh.getColumn(sh.columnCount).letter + '1' };
+    return wb;
+  }
+  async function exportEquipo(eq, btn) {
+    const base = String(eq.equipo || ('equipo_' + eq.id)).replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 40) || 'equipo';
+    await deliverXlsx(() => buildEquipoWorkbook(eq), 'Eventos_' + base + '_' + stamp() + '.xlsx', btn);
+  }
+
   function renderDetalle(eq) {
-    const hist = consolidatedEvents().filter(e => e.id === eq.id).sort((a, b) => a.nMes - b.nMes);
-    const pm = MP.programmedMonths(eq);
     const ef = estadoFinalActual(eq.id);
     const efBanner = ef
       ? '<div class="efbanner" style="' + efStyle(ef.ef) + '">Estado final del equipo: <b>' + esc(ef.ef) +
@@ -3345,54 +3452,45 @@ function json(obj) {
     const obs = (eq.observacion && String(eq.observacion).trim())
       ? '<div class="fi-obs"><span class="k">Observación</span><span class="vv">' + esc(eq.observacion) + '</span></div>' : '';
     const head = '<div class="section-title" style="font-size:14px">📋 Datos del equipo</div>' + grid + obs;
+
+    // Línea de tiempo unificada (preventivos + correctivos + pendientes), reciente primero
+    const tl = equipoTimeline(eq);
     let body;
-    if (!hist.length) {
-      body = '<div class="muted">Este equipo no tiene meses programados ni resultados en 2026.</div>';
+    if (!tl.length) {
+      body = '<div class="muted" style="margin-top:10px">Este equipo aún no tiene eventos (preventivos, correctivos ni pendientes) en 2026.</div>';
     } else {
-      const cols = ['Mes', 'Programa', 'Tipo', 'Resultado', 'Fecha', 'Estado', 'Ejecutor', 'Estado Final'];
+      const cols = ['Fecha', 'Tipo', 'Evento', 'Resultado / Estado', 'Ejecutor / Resp.', 'Estado final'];
       const h = '<tr>' + cols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
-      const rows = hist.map(e =>
-        '<tr><td>' + esc(e.mes) + '</td><td>' + esc(e.programa) + '</td><td>' + esc(e.tipoPrograma) + '</td><td>' + esc(e.resultado) +
-        '</td><td>' + esc(fmtDate(e.fechaEjecucion)) + '</td><td>' + esc(e.estado) + '</td><td>' + esc(e.ejecutor) + '</td><td>' + esc(e.estadoFinal) + '</td></tr>'
+      const rows = tl.map((it, i) =>
+        '<tr class="clik" data-ti="' + i + '" title="Clic para ver el detalle"><td>' + esc(it.fecha ? fmtDate(it.fecha) : '—') +
+        '</td><td><span class="pill" style="' + tipoEventoStyle(it.tipo) + '">' + esc(it.tipo) + '</span></td><td>' + esc(it.evento) +
+        '</td><td>' + esc(it.resEstado) + '</td><td>' + esc(it.quien) + '</td><td>' +
+        (it.estadoFinal ? '<span class="pill" style="' + efStyle(it.estadoFinal) + '">' + esc(it.estadoFinal) + '</span>' : '—') + '</td></tr>' +
+        '<tr class="detrow" data-det="' + i + '" style="display:none"><td colspan="6" style="background:#f7fbfc">' + eventoDetalleHTML(it) + '</td></tr>'
       ).join('');
-      body = '<div class="muted" style="margin:8px 0 4px">Historial 2026 (preventivo) — meses programados: ' +
-        (pm.length ? pm.map(i => MP.MONTHS_FULL[i]).join(', ') : '(ninguno)') + '</div>' +
+      body =
+        '<div class="actions" style="justify-content:space-between;align-items:center;margin:12px 0 4px">' +
+          '<span class="section-title" style="font-size:14px">📜 Historial de eventos <span class="muted" style="font-weight:600">(más reciente primero · ' + tl.length + ')</span></span>' +
+          '<button id="detExport" class="btn btn-accent btn-sm" type="button" style="margin-top:0">⬇️ Exportar a Excel</button>' +
+        '</div>' +
+        '<div class="muted" style="margin:0 0 6px;font-size:12.5px">Clic en una fila para ver el detalle completo.</div>' +
         '<div class="tablewrap"><table class="prev">' + h + rows + '</table></div>';
     }
-    // Historial de eventos correctivos del equipo
-    const corr = state.correctivos.filter(c => c.id === eq.id);
-    let corrBody = '';
-    if (corr.length) {
-      const cc = ['Tipo de Evento', 'Fecha', 'Folio', 'N° Envío', 'Empresa', 'Ejecutor', 'Descripción', 'Estado Final'];
-      const ch = '<tr>' + cc.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
-      const cr = corr.map(c =>
-        '<tr><td>' + esc(c.tipoEvento) + '</td><td>' + esc(fmtDate(c.fecha)) + '</td><td>' + esc(c.folioSolicitud || c.folioGuia) +
-        '</td><td>' + esc(c.nEnvio) + '</td><td>' + esc(c.empresa) + '</td><td>' + esc(c.ejecutor) + '</td><td>' + esc(c.descripcion) +
-        '</td><td>' + esc(c.estadoFinal) + '</td></tr>'
-      ).join('');
-      corrBody = '<div class="muted" style="margin:10px 0 4px">Eventos correctivos registrados</div>' +
-        '<div class="tablewrap"><table class="prev">' + ch + cr + '</table></div>';
-    }
-    // Pendientes del equipo
-    const pend = state.pendientes.filter(p => p.id === eq.id);
-    let pendBody = '';
-    if (pend.length) {
-      const pc = ['Tipo', 'Fecha compromiso', 'Resp. administrativo', 'Resp. ejecución', 'Observación'];
-      const ph = '<tr>' + pc.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
-      const pr = pend.map(p =>
-        '<tr><td>' + esc(p.tipo || '—') + '</td><td>' + esc(fmtDate(p.fechaCompromiso)) + '</td><td>' + esc(p.respAdministrativo) + '</td><td>' +
-        esc(p.respEjecucion) + '</td><td>' + esc(p.observacion) + '</td></tr>'
-      ).join('');
-      pendBody = '<div class="muted" style="margin:10px 0 4px">Pendientes registrados</div>' +
-        '<div class="tablewrap"><table class="prev">' + ph + pr + '</table></div>';
-    }
-    $('#equipoDetalle').innerHTML = efBanner + head + body + corrBody + pendBody +
-      '<div class="actions" style="margin-top:10px">' +
+
+    $('#equipoDetalle').innerHTML = efBanner + head + body +
+      '<div class="actions" style="margin-top:12px">' +
         '<button id="detRegistrar" class="btn btn-accent btn-sm" type="button">🔧 Registrar mantención preventiva</button>' +
         '<button id="detCorrectivo" class="btn btn-primary btn-sm" type="button">🛠️ Registrar evento correctivo</button>' +
         '<button id="detPendiente" class="btn btn-ghost btn-sm" type="button">📌 Registrar pendiente</button>' +
       '</div>';
     $('#equipoDetalle').style.display = 'block';
+    // Expandir/contraer el detalle de cada evento
+    $('#equipoDetalle').querySelectorAll('tr.clik[data-ti]').forEach(tr =>
+      tr.addEventListener('click', () => {
+        const det = $('#equipoDetalle').querySelector('tr.detrow[data-det="' + tr.dataset.ti + '"]');
+        if (det) det.style.display = (det.style.display === 'none') ? '' : 'none';
+      }));
+    const exp = $('#detExport'); if (exp) exp.addEventListener('click', () => exportEquipo(eq, exp));
     $('#detRegistrar').addEventListener('click', () => openModal(eq));
     $('#detCorrectivo').addEventListener('click', () => openCModal(eq));
     $('#detPendiente').addEventListener('click', () => openPModal(eq));
