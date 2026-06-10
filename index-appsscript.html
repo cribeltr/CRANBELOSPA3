@@ -1872,7 +1872,7 @@ function json(obj) {
       byEstado.set(e.estado, (byEstado.get(e.estado) || 0) + 1);
       const m = byMes[e.nMes - 1];
       if (e.programa) m.prog++;
-      const st = e.estado;
+      const st = e.estado || '';
       if (st.startsWith('Realizada')) m.real++;
       else if (st === 'Reprogramada') m.reprog++;
       else if (st.startsWith('Pendiente') || st === 'Puesta en Marcha') m.pend++;
@@ -1914,6 +1914,7 @@ function json(obj) {
     catTitle: 'FF2A6F77'
   };
   function estadoFill(st) {
+    st = st || '';
     if (st.startsWith('Realizada')) return COLOR.realizada;
     if (st === 'Reprogramada') return COLOR.reprogramada;
     if (st === 'Puesta en Marcha') return COLOR.pm;
@@ -3289,6 +3290,7 @@ function json(obj) {
   }
 
   function estadoStyle(st) {
+    st = st || '';
     if (st.startsWith('Realizada')) return 'background:#C6EFCE;color:#136b30';
     if (st === 'Reprogramada') return 'background:#FCE4A6;color:#8a6d00';
     if (st === 'Puesta en Marcha') return 'background:#DDEBF7;color:#0a4a6e';
@@ -3302,9 +3304,10 @@ function json(obj) {
     const ev = consolidatedEvents();
     let real = 0, reprog = 0, pend = 0;
     for (const e of ev) {
-      if (e.estado.startsWith('Realizada')) real++;
-      else if (e.estado === 'Reprogramada') reprog++;
-      else if (e.estado.startsWith('Pendiente')) pend++;
+      const st = e.estado || '';
+      if (st.startsWith('Realizada')) real++;
+      else if (st === 'Reprogramada') reprog++;
+      else if (st.startsWith('Pendiente')) pend++;
     }
     const cards = [
       ['Equipos', state.equipos.length], ['Eventos', ev.length], ['Realizadas', real],
