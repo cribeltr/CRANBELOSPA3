@@ -508,8 +508,14 @@ function readAll(includeEquipos) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName('Eventos');
   var n = sh ? Math.max(0, sh.getLastRow() - 1) : 0;
+  // Con datos normalizados (existe "RegistrosMP") la app reconstruye TODO desde las
+  // hojas (restoreFromDatos). En ese caso NO devolvemos el snapshot "_datos": es
+  // redundante y pesado, y al sumarse a las tablas hacía que google.script.run
+  // superara su límite de tamaño y resolviera null ("el script no devuelve datos").
+  // Solo se incluye el snapshot en planillas heredadas (sin "RegistrosMP").
+  var tieneV2 = ss.getSheetByName('RegistrosMP');
   var ds = ss.getSheetByName('_datos');
-  var data = ds ? ds.getRange(1, 1).getValue() : '';
+  var data = (!tieneV2 && ds) ? ds.getRange(1, 1).getValue() : '';
   var out = {
     ok: true, ver: APP_VERSION, count: n, data: data,
     tablas: {
